@@ -1,3 +1,20 @@
+.ipynb_checkpoints/
+input
+
+# ignore weights and outputs of early model versions
+output/naive_nn_v1.csv
+output/gpu_cnn.csv
+output/naive_nn_v1.1.csv
+output/naive_nn_v2_512_dropout.csv
+output/naive_nn_v3_2layers_1024_512.csv
+saved_models/cnn.ice.best.weights.v1.hdf5
+saved_models/cnn.ice.best.weights.hdf5
+saved_models/cnn.ice.v1.best.weights.hdf5
+saved_models/naive.nn.v1.best.weights.hdf5
+saved_models/cnn.simpnet.v2.best.weights.hdf5
+output/batch_norm_cnn.csv
+
+__pycache__
 .DS_Store
 .idea
 *.json
