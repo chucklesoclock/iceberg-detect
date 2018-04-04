@@ -19,3 +19,4 @@ __pycache__
 .idea
 *.json
 *.hdf5
+proposal.pdf
