@@ -84,7 +84,7 @@ _(approx. 2-4 pages)_
 
 The dataset is provided by Statoil, an international energy company, C-Core, who built the satellite computer vision system we are endeavoring to improve upon, with delivery provided by the good people at [Kaggle](https://www.kaggle.com/). 
 
-The two `json` files, named `train.json` and `test.json`, divide the data into training and testing sets respectively. They are identical except the latter does not have a `is_iceberg` column and is much larger than the former. 
+The two `json` files, named **`train.json`** and **`test.json`**, divide the data into training and testing sets respectively. They are identical except the latter does not have a `is_iceberg` column and is much larger than the former. 
 
 For completeness, an entry in `train.json` and `test.json` contains the following fields:
 
@@ -93,9 +93,15 @@ For completeness, an entry in `train.json` and `test.json` contains the followin
 * __`inc_angle`__ = incidence angle of radar image. Some entries have missing data and are marked as `na`.
 * __`is_iceberg`__ = target variable: 1 if iceberg, 0 if ship. Again, this field exists only in `train.json`
 
-The distrubtion 
+Note that there are XXX training examples and YYY testing examples. 
 
 This means that (1) we must create our own validation set from the much smaller training set, and therefore (2) we must find ways to augment the training set with `keras` methods. 
+
+#### Radar Data
+
+This is a sample of `band_1` HH radar data. Note that it is somewhat normally distributed, but the bright spots of the area of interest (i.e. the iceberg or ocean-going vessel) makes it more heavily right-tailed. [Bentes et all (20XX)]() suggest a unique normalization method to bring those high values down into a somewhat more normal-looking distrubtion. 
+
+**add stuff from visualization notebook here and detail Bentes norm here**
 
 In this section, you will be expected to analyze the data you are using for the problem. This data can either be in the form of a dataset (or datasets), input data (or input files), or even an environment. The type of data should be thoroughly described and, if possible, have basic statistics and information presented (such as discussion of input features or defining characteristics about the input or environment). Any abnormalities or interesting qualities about the data that may need to be addressed have been identified (such as features that need to be transformed or the possibility of outliers). Questions to ask yourself when writing this section:
 - _If a dataset is present for this problem, have you thoroughly discussed certain features about the dataset? Has a data sample been provided to the reader?_
