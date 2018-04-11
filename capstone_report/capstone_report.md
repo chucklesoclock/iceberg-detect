@@ -22,28 +22,11 @@ Much like the "blips" on ships' radar in the movies, objects in the ocean are re
 
 After identification on the SAR image described above, analysis is required to correctly identify the remotely sensed object. In our case, we are given the task of discriminating between ocean-going vessels and floating icebergs, which pose a significant danger. A [recent article from the European Space Agency](http://www.esa.int/Our_Activities/Observing_the_Earth/Satellites_guide_ships_in_icy_waters_through_the_cloud) exposes the apparent benefits from such technology: the ability to programmatically detect threats to shipping and "navigate through...notoriously icy waters". The approach presented in this paper will leverage deep learning and convolutional neural networks (CNNs) to learn what which features of a radar image determine an iceberg. A similar approach applied to the same problem is outlined by [Bentes, Frost, Velotto, and Tings (2016)](http://elib.dlr.de/99079/2/2016_BENTES_Frost_Velotto_Tings_EUSAR_FP.pdf), going as far to also be written in Python, but using the ML library Theano. The solution presented here will differ by preprocessing methods, the extra feature of the incidence angle, the software backend supporting the neural network (TensorFlow via Keras), and the specific CNN architecture employed to perform the classification. 
 
-In the end, however, this will probably end up being a Bentes replication submission. 
+In the end, this will probably end up being a Bentes replication submission. 
 
 #### Input Data
 
 To help accomplish our task, Statoil and C-CORE have provided us with two `json` files, one of labeled training examples (`train.json`) and one of unlabeled examples to test our model on (`test.json`). Each entry in both essentially contains a 75x75 pixel image composed of the backscatter levels from two different polarizations, along with the incidence angle the radar was emitted/collected at, and a label, if applicable. 
-
-Specifically, each entry has the following fields:
-
-* __`id`__ 
-    * unique ID of the image for submission verification
-* __`band_1`, `band_2`__ 
-    * a list of flattened SAR radar image data
-    * each band is a 75x75 pixel image, so each list has 5625 elements
-    * values are decibels (dB) of radar backscatter at the given incidence angle and polarization
-    * polarization of `band_1` = HH, where the radar is both transmitted and received in the horizontal plane
-    * polarization of `band_2` = HV, i.e. transmitted horizontally and received vertically. 
-* __`inc_angle`__ 
-    * incidence angle of radar image
-    * some entries have missing data and are marked as `na`.
-* __`is_iceberg`__
-    * target variable / label
-    * 1 if iceberg, 0 if ship
 
 ### Problem Statement
 
@@ -106,8 +89,8 @@ Finally, we must add a third channel set to the mean of `band_1` and `band_2`, s
 
 ### Exploratory Visualization
 
-![plotly view of ship/iceberg](/capstone_report/normalized_dB_3d.png)
-![plotly view of bentes normalized ship/iceberg](/capstone_report/bentes_dB_3d.png)
+![plotly view of ship/iceberg](./capstone_report/normalized_dB_3d.png)
+![plotly view of bentes normalized ship/iceberg](./capstone_report/bentes_dB_3d.png)
 
 In this section, you will need to provide some form of visualization that summarizes or extracts a relevant characteristic or feature about the data. The visualization should adequately support the data being used. Discuss why this visualization was chosen and how it is relevant. Questions to ask yourself when writing this section:
 - _Have you visualized a relevant characteristic or feature about the dataset or input data?_
