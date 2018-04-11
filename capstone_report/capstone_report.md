@@ -70,40 +70,74 @@ For completeness, an entry in `train.json` and `test.json` contains the followin
 * __`inc_angle`__ = incidence angle of radar image. Some entries have missing data and are marked as `na`.
 * __`is_iceberg`__ = target variable: 1 if iceberg, 0 if ship. Again, this field exists only in `train.json`
 
-Note that there are XXX training examples and YYY testing examples without `is_iceberg`. 
+There are 851 (53.05%) training examples of ships and 753 (46.95%) training examples of icebergs. 
 
 ![training set distribution](/capstone_report/train_data_dist.png)
 
-This means that (1) we must create our own validation set from the much smaller training set, and since this doesn't leave us with a lot of training examples, we must therefore (2) find ways to augment the training set with `keras` methods to improve the model's predictive power. 
+This means that (1) we must create our own validation set from the smallish dataset, and since this doesn't leave us with a lot of training examples, we must therefore (2) find ways to augment the training set with `keras` methods to improve the model's predictive power. 
 
 #### Radar Data
-
-This is a sample of `band_1` HH radar data. Note that it is somewhat normally distributed, but the bright spots of the area of interest (i.e. the iceberg or ocean-going vessel) makes it more heavily right-tailed. For our first pass, we are going to leave the normalized values where they are and observe performance. 
 
 ![heatmap of 4 icebergs]()
 ![heatmap of 4 ships]()
 
+The above is an example of `band_1` HH radar data. We choose one and display its Q-Q plot, which measures the data's normal distribution tendencies. 
+
+![q-q of iceberg pre/post bentes]()
+
+Note that it is somewhat normally distributed, but the bright spots of the area of interest (i.e. the iceberg or ocean-going vessel) makes it more heavily right-tailed. For our first pass, we are going to leave the normalized values where they are and observe performance. 
+
 Also to note is that we will be normalizing over each band, rather than by pixel across the entire dataset. This is for the now obvious reason that icebergs' and ships' backscatters are not fixed (aka since icebergs are, in fact, not uniformly made). Therefore the model should learn to expect edges in different places in the image. 
 
 Finally, we must add a third channel set to the mean of `band_1` and `band_2`, since Keras expects 1- or 3-channeled images (equivalent to grayscale or RGB images). This is accomplished through the `process_df` function applied early in the Jupyter notebook. 
+
+#### Incidence Angle
+
+![q-q pre/post minimum drop]()
+![filled vs dropped NaN angles]()
+![distplot of angles after filling]()
 
 ### Exploratory Visualization
 
 ![plotly view of ship/iceberg](./capstone_report/normalized_dB_3d.png)
 ![plotly view of bentes normalized ship/iceberg](./capstone_report/bentes_dB_3d.png)
 
-In this section, you will need to provide some form of visualization that summarizes or extracts a relevant characteristic or feature about the data. The visualization should adequately support the data being used. Discuss why this visualization was chosen and how it is relevant. Questions to ask yourself when writing this section:
-- _Have you visualized a relevant characteristic or feature about the dataset or input data?_
-- _Is the visualization thoroughly analyzed and discussed?_
-- _If a plot is provided, are the axes, title, and datum clearly defined?_
-
 ### Algorithms and Techniques
-In this section, you will need to discuss the algorithms and techniques you intend to use for solving the problem. You should justify the use of each one based on the characteristics of the problem and the problem domain. Questions to ask yourself when writing this section:
-- _Are the algorithms you will use, including any default variables/parameters in the project clearly defined?_
-- _Are the techniques to be used thoroughly discussed and justified?_
-- _Is it made clear how the input data or datasets will be handled by the algorithms and techniques chosen?_
+The approach employed will largely mirror cited articles. After pre-processing and normalization techniques are applied, a convolutional neural network, or CNN, will be constructed and trained on the labeled radar images. This is the computer vision industry standard approach to object recognition in images. 
+
+Generally, a CNN works by creating some combination of layers specific to CNNs. 
+
+The first and most important for detecting edges and shapes are the convolutional layer. This is usually a square filter slid across and down the image radar images that learns the shapes associated with that particular label (i.e. 0 for ship and 1 for iceberg). This deepens the spatial information available on a particular pixel. The second notable layer is a pooling layer, which averages or maxes a subset of usually >= 2x2 pixels on the radar image. This layer of the CNN usually follows a convolutional layer and works to shrink the dimensions of the informational object, while keeping the deepness that the convolution added. Finally, the other layer to be conversant in is the dropout layer, which randomly turns off some neurons in the network so that all of the architecture can be trained. This can be thought as "turning off" your dominant hand to learn how to sign your name with your off-hand, but in the case of nodes in a network. The theory is that, unlike a person, a fully-utilized neural network will generalize better than one with "asleep" nodes. 
+
+**ADD SUMMARY OR EXPLANATION OF SIMPNET HERE** 
+
+**ADD CONCAT IDEA HERE**
 
 ### Benchmark
+To benchmark our solutions locally, we rely on the performance of a "vanilla" neural network. This non-CNN has a few layers of fully-connect nodes and outputs the same probability values that our CNN will. By uploading to Kaggle and viewing its log loss, we obtain a baseline from which to iterate upon. 
+
+Furthermore, baseline model results have been calculated from setting outputted probabilities to specific values:
+
+> We know a perfect classifier would have a log loss of exactly zero, but we don't know how an unintelligent classifier would fare. Three such classifiers jump to mind: one that always classifies an image as containing an iceberg at probability 1.0, one that always outputs iceberg probability 0.5, and one that's certain there's never an iceberg anywhere (iceberg probability = 0.0). An additional classifier is one that predicts an iceberg in an image equal to the frequency of icebergs in the training set 
+
+>We must submit each to the [Kaggle submission page](https://www.kaggle.com/c/statoil-iceberg-classifier-challenge/submit) for calculation of log loss, as we do not have access to the true labels of the testing data. 
+
+
+|           Baseline Model           | `is_iceberg =` | log loss (private 80% / public 20%)|
+|------------------------------------|----------------|-----------------------------------:|
+| certain iceberg                    | 1.0            |                  16.3468 / 16.5210 |
+| certain not iceberg                | 0.0            |                  18.1922 / 18.0180 |
+| indecisive                         | 0.5            |                    0.6931 / 0.6931 |
+| proportion of icebergs in training | 0.469451       |                    0.6982 / 0.6976 |
+
+As a comparison:
+
+| Model          | Log Loss (public 20%) |
+|----------------|-----------------------|
+| current leader | 0.0869                |
+
+**ADD NEURAL NETWORK NUMBERS HERE**
+
 In this section, you will need to provide a clearly defined benchmark result or threshold for comparing across performances obtained by your solution. The reasoning behind the benchmark (in the case where it is not an established result) should be discussed. Questions to ask yourself when writing this section:
 - _Has some result or value been provided that acts as a benchmark for measuring performance?_
 - _Is it clear how this result or value was obtained (whether by data or by hypothesis)?_
