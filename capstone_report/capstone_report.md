@@ -55,7 +55,6 @@ For a single image, if our prediction matches the label, a confident prediction 
 In practice, functions that calculate log loss do not directly compute predictions of exactly 1 or 0. You might notice that a perfectly wrong prediction, such as predicting a definite in image $j$ containing a ship ($y_j = 1$) with probability $p_j = 0$ involves the calculation $y_j \log p_j = 1 \log 0 = \inf$. Since we can't sum infinity meaningfully, the log loss function assigns a minimum and maximum probability that it sets predictions of 0.0 and 1.0 to, respectively.
 
 ## II. Analysis
-_(approx. 2-4 pages)_
 
 ### Data Exploration
 
@@ -78,10 +77,12 @@ This means that (1) we must create our own validation set from the smallish data
 
 #### Radar Data
 
+As noted in the introduction, a radar band's image data is composed of the decibel levels of backscatter, equivalent to the intensity of the reflected radar pulse for some predetermined pixel-to-area conversion. See below for heatmapped 2D illustrations 
+
 ![heatmap of 4 icebergs]()
 ![heatmap of 4 ships]()
 
-The above is an example of `band_1` HH radar data. We choose one and display its Q-Q plot, which measures the data's normal distribution tendencies. 
+The above is an example of the `band_1` aka transmit/receive horizontally (HH) radar data. We choose one of the icebergs and display its Q-Q plot, which measures the data's normal distribution tendencies. 
 
 ![q-q of iceberg pre/post bentes]()
 
@@ -93,11 +94,27 @@ Finally, we must add a third channel set to the mean of `band_1` and `band_2`, s
 
 #### Incidence Angle
 
-![q-q pre/post minimum drop]()
+Since this is side-looking radar from a satellite, backscatter levels can be affected by the viewing and receiving angle, which may be important to include in our model's analyses. 
+
+Kaggle alerts us to the fact that the training data involves a number of missing incidence angles, all occuring when the image contains an ocean-going vessel. See below. 
+
 ![filled vs dropped NaN angles]()
+
+After classifying them as `np.NaN`, a decision must be made on how to handle the missing data. At this juncture, filling the missing incidence angle with the mean of the ship's incidence angles seems like a reasonable first step. 
+
+Next, a minimum value is well away from the normalized values when viewed on a Q-Q plot. 
+
+![q-q pre/post minimum drop]()
+
+I chose to drop this minimum incidence as an outlier and fill the missing , since the training set is on the smaller size anyway. You can see the effects on the following Seaborn distplot: 
+
 ![distplot of angles after filling]()
 
+What we are left with is a somewhat normal-ish looking distribution which hopefully strikes the balance between lack of data and working within Keras limitations. 
+
 ### Exploratory Visualization
+
+I invite you to explore an interactive surface plot of an iceberg or ship thanks to `plotly` and [this helpful Kaggle notebook](https://www.kaggle.com/devm2024/keras-model-for-beginners-0-210-on-lb-eda-r-d).
 
 ![plotly view of ship/iceberg](./capstone_report/normalized_dB_3d.png)
 ![plotly view of bentes normalized ship/iceberg](./capstone_report/bentes_dB_3d.png)
@@ -119,7 +136,7 @@ To benchmark our solutions locally, we rely on the performance of a "vanilla" ne
 Furthermore, baseline model results have been calculated from setting outputted probabilities to specific values:
 
 > We know a perfect classifier would have a log loss of exactly zero, but we don't know how an unintelligent classifier would fare. Three such classifiers jump to mind: one that always classifies an image as containing an iceberg at probability 1.0, one that always outputs iceberg probability 0.5, and one that's certain there's never an iceberg anywhere (iceberg probability = 0.0). An additional classifier is one that predicts an iceberg in an image equal to the frequency of icebergs in the training set 
-
+> 
 >We must submit each to the [Kaggle submission page](https://www.kaggle.com/c/statoil-iceberg-classifier-challenge/submit) for calculation of log loss, as we do not have access to the true labels of the testing data. 
 
 
