@@ -1,0 +1,589 @@
+# Predicting Iceberg Probability from Satellite Radar Imagery
+## Imports and Read Data
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+import os
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import scale
+from keras import backend as K
+
+%matplotlib inline
+df = pd.read_json(os.path.join('input', 'train.json'))
+## Create Extra Band
+from helpers import process_df
+
+# list of convenience
+bands = ['band_1', 'band_2', 'band_3']
+
+process_df(df)
+df.sample()
+## Preparing Tensors
+#### Missing Incidence Angles
+print('There are {} missing entries for incidence angle.'.format(sum(df.inc_angle.isna())))
+We must decide how to fill this missing data or to discard them completely. Possibilities include filling with the median, mean, or mode. 
+
+An advanced technique would be to predict the incidence angle from the background ocean dBs levels. perhaps with a CNN with convolutional windows of 1x1 or 2x2 over a small subset where the target object is not supposed to be. The background dBs would presumably be subject to weather on the surface affecting the waves, but still possible. 
+#### Summary Statistics for Incidence Angle
+angle_counts = df.inc_angle.value_counts()
+angle_mode = angle_counts.index[0]
+angle_mode_count = angle_counts.iloc[0]
+print('mode', '{:>15.6f}, count = {}'.format(angle_mode, angle_mode_count))
+df.inc_angle.describe()
+We choose at this juncture to fill the missing incidence angles with the mean. While this might be sub-optimal, it pulls the median lower towards the most frequent value, and is a reasonable first guess. 
+filled_df = df.fillna(df.inc_angle.mean())
+def make_tensors(df):
+    # for each band, stack the normalized img arrays on top of each other
+    norm_band_1 = np.stack(scale(arr) for arr in np.array(df.band_1))
+    norm_band_2 = np.stack(scale(arr) for arr in np.array(df.band_2))
+    norm_band_3 = np.stack(scale(arr) for arr in np.array(df.band_3))
+    # combine the normalized bands into three channels
+    flat_tensors = np.stack([norm_band_1, norm_band_2, norm_band_3], axis=-1)
+    # return tensors reshaped into 75x75 radar images
+    return flat_tensors.reshape(flat_tensors.shape[0], 75, 75, 3)
+
+all_tensors = make_tensors(filled_df)
+# making sure we got the scaling correct...should be normalized per image
+assert all_tensors[0,0,20,0] == scale(df.band_1.iloc[0])[20], 'first row mismatch'
+assert all_tensors[0,1,20,0] == scale(df.band_1.iloc[0])[1*75+20], 'first row 20th column mismatch'
+assert all_tensors[1,5,60,0] == scale(df.band_1.iloc[1])[5*75+60], 'second image stacked incorrectly'
+## Visualize Radar Images
+All visualizations are plotted using HH Band 1. 
+def get_sample_indexes(n=1, iceberg=True):
+    ice = 1 if iceberg else 0
+    return df[df.is_iceberg == ice].sample(n).index
+from keras.preprocessing.image import ImageDataGenerator
+import matplotlib.gridspec as gridspec
+
+# b_mins = np.min(all_tensors, axis=(0,1,2))
+# b_maxs = np.max(all_tensors, axis=(0,1,2))
+
+def plot_examples(n, iceberg=True, idx_list=None, band=1, normed=False):
+    assert band in [1,2,3], 'select either HH band_1 or HV band_2 or mean band_3'
+    examples = n
+    indices = get_sample_indexes(examples, iceberg=iceberg) if idx_list is None else idx_list
+    assert len(indices) == n, 'index list length mismatch with number of examples'
+
+    plt.figure(figsize=(15, 5))
+    gs = gridspec.GridSpec(examples*3, examples)
+    ex_axes = [plt.subplot(gs[:-1, i]) for i in range(examples)]
+    cbar_ax = [plt.subplot(gs[-1, i]) for i in range(examples)]
+
+    for i, idx in enumerate(indices):
+        sample = all_tensors[idx, :, :, band-1] if normed else getattr(df, 'band_'+str(band)).iloc[idx].reshape(75, 75)
+        heatmap_kws = dict(
+            # vmin=b_mins[band-1], vmax=b_maxs[band-1],
+            center=0 if normed else None,
+            square=True,
+            xticklabels=False,
+            yticklabels=False,
+            ax=ex_axes[i],
+            cmap=sns.color_palette('RdBu_r' if iceberg else 'PuBuGn', 150),
+            cbar=True,
+            cbar_ax=cbar_ax[i],
+            cbar_kws={\"orientation\": \"horizontal\", \"label\": \"Normalized dB\" if normed else \"dB\"}
+        )
+        sns.heatmap(sample, **heatmap_kws)
+        angle = df.inc_angle.iloc[idx]
+        ex_axes[i].set_title('#{}: inc_angle = {:.4f}'.format(i+1, angle))
+
+    gs.tight_layout(plt.gcf())
+    plt.suptitle('ICEBERGS' if iceberg else 'SHIPS')
+    plt.show()
+    return indices
+}
+{
+execution_count": 11
+metadata": {}
+outputs": []
+train_datagen = ImageDataGenerator(
+    featurewise_center=True,
+    featurewise_std_normalization=True,
+    horizontal_flip=True,
+    vertical_flip=True,
+    width_shift_range=.05, 
+    height_shift_range=.05, 
+    rotation_range=30
+)
+
+test_datagen = ImageDataGenerator(
+    featurewise_center=True,
+    featurewise_std_normalization=True
+)
+
+angle_tensors = np.concatenate((train_tensors, valid_tensors))
+train_datagen.fit(angle_tensors)
+test_datagen.fit(angle_tensors)
+# visualization code snippet from 
+# https://www.kaggle.com/devm2024/keras-model-for-beginners-0-210-on-lb-eda-r-d
+import plotly.offline as py
+import plotly.graph_objs as go
+
+py.init_notebook_mode(connected=True)
+
+
+def plot_3d_example(band_data, name):
+    surface = go.Surface(
+            z=band_data,
+            colorbar={'title': 'dB'}
+        )
+    data = [surface]
+    layout = go.Layout(
+        title=name,
+        autosize=False,
+        width=700,
+        height=700,
+        margin=dict(
+            l=65,
+            r=50,
+            b=65,
+            t=90
+        )
+    )
+    fig = go.Figure(data=data, layout=layout)
+    py.iplot(fig)
+### Seaborn Visualization
+execution_count": 12
+metadata": {}
+outputs": []
+def img_and_aux_gen(datagen, tensors, aux_input, targets, shuffle=True):
+    # https://www.kaggle.com/sinkie/keras-data-augmentation-with-multiple-inputs
+    if targets is not None:
+        img_gen = datagen.flow(x=tensors, y=targets, batch_size=batch_size, seed=42, shuffle=shuffle)
+        aux_gen = datagen.flow(x=np.zeros_like(tensors), y=aux_input, batch_size=batch_size, seed=42, shuffle=shuffle)
+        while True:
+            x1, y = next(img_gen)
+            _, x2 = next(aux_gen)
+            yield ([x1, x2], y)
+    else:
+        img_gen = datagen.flow(x=tensors, y=None, batch_size=1, seed=42, shuffle=False)
+        aux_gen = (aux for aux in aux_input)
+        while True:
+            x1 = next(img_gen)
+            x2 = next(aux_gen)
+            yield ([x1, x2], )
+
+
+batch_size = 32
+epochs = 100
+
+train_flow = img_and_aux_gen(train_datagen, train_tensors, train_angle, train_targets)
+valid_flow = img_and_aux_gen(test_datagen, valid_tensors, valid_angle, valid_targets, shuffle=False)
+examples = 4
+### Icebergs
+from keras.layers import Conv2D, MaxPooling2D, Dense, GlobalMaxPool2D
+from keras.layers import Input, Flatten, concatenate
+from keras.layers import Dropout, BatchNormalization
+from keras.models import Model
+from keras.utils import plot_model
+from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
+
+
+def create_cnn(iceberg_predict=True):
+    # inputs
+    radar_img_shape = train_tensors.shape[1:]
+    radar_input = Input(shape=radar_img_shape, name='radar_image')
+    aux_input = Input(shape=(1,), name='aux_input')
+    
+    # computer vision model for 3-banded radar image
+    x = BatchNormalization()(radar_input)
+    x = Conv2D(256, kernel_size=4, padding='same', activation='relu')(x)
+    x = MaxPooling2D(pool_size=3)(x)
+    x = Dropout(.25)(x)
+    x = Conv2D(256, kernel_size=3, padding='same', activation='relu')(x)
+    x = MaxPooling2D(pool_size=2)(x)
+    x = Dropout(.25)(x)
+    for _ in range(2):
+        x = Conv2D(128, kernel_size=3, padding='same', activation='relu')(x)
+        x = MaxPooling2D(pool_size=2)(x)
+        x = Dropout(.25)(x)
+    radar_output = GlobalMaxPool2D()(x)
+#     radar_output = Flatten()(x)
+    
+    # add auxiliary input and combine into concatenate layer
+    combined_inputs = concatenate([radar_output, aux_input])
+    
+    # feed both into fully-connected layers
+    x = BatchNormalization()(combined_inputs)
+    x = Dense(512, activation='relu')(x)
+    x = Dropout(.25)(x)
+    x = Dense(256, activation='relu')(x)
+    x = Dropout(.25)(x)
+    
+    # final output
+    last_act = 'sigmoid' if iceberg_predict else None
+    last_name = 'is_iceberg' if iceberg_predict else 'inc_angle'
+    output = Dense(1, activation=last_act, name=last_name)(x)
+    
+    # model definition and summary
+    model = Model(inputs=[radar_input, aux_input], outputs=output)
+    model.summary()
+    plot_model(model, to_file='cnn-{}.png'.format('iceberg' if iceberg_predict else 'angle'))
+    
+    return model
+
+
+def create_callbacks(iceberg_predict=True):
+    # save best model checkpoint
+    cnn_name = 'cnn.{}.best.weights.hdf5'.format('ice' if iceberg_predict else 'angle')
+    save_best = ModelCheckpoint(filepath=os.path.join('saved_models', cnn_name), 
+                                save_best_only=True, save_weights_only=True, verbose=1)
+    # early stopping 
+    early_stop = EarlyStopping(monitor='val_loss', verbose=1, patience=5)
+    
+    # reduce learning rate on plateau
+    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=2, verbose=0)
+    
+    return {'early_stop': early_stop, 'save_best': save_best, 'reduce_lr': reduce_lr}
+ice_idx = plot_examples(n=examples);
+}
+{
+cell_type": "code
+execution_count": 42
+metadata": {
+scrolled": false
+}
+outputs": [
+{
+name": "stdout
+output_type": "stream
+text": [
+____________________________________________________________________________________________________
+Layer (type)                     Output Shape          Param #     Connected to                     
+====================================================================================================
+radar_image (InputLayer)         (None, 75, 75, 3)     0                                            
+____________________________________________________________________________________________________
+batch_normalization_3 (BatchNorm (None, 75, 75, 3)     12          radar_image[0][0]                
+____________________________________________________________________________________________________
+conv2d_15 (Conv2D)               (None, 75, 75, 256)   12544       batch_normalization_3[0][0]      
+____________________________________________________________________________________________________
+max_pooling2d_13 (MaxPooling2D)  (None, 25, 25, 256)   0           conv2d_15[0][0]                  
+____________________________________________________________________________________________________
+dropout_19 (Dropout)             (None, 25, 25, 256)   0           max_pooling2d_13[0][0]           
+____________________________________________________________________________________________________
+conv2d_16 (Conv2D)               (None, 25, 25, 256)   590080      dropout_19[0][0]                 
+____________________________________________________________________________________________________
+max_pooling2d_14 (MaxPooling2D)  (None, 12, 12, 256)   0           conv2d_16[0][0]                  
+____________________________________________________________________________________________________
+dropout_20 (Dropout)             (None, 12, 12, 256)   0           max_pooling2d_14[0][0]           
+____________________________________________________________________________________________________
+conv2d_17 (Conv2D)               (None, 12, 12, 128)   295040      dropout_20[0][0]                 
+____________________________________________________________________________________________________
+max_pooling2d_15 (MaxPooling2D)  (None, 6, 6, 128)     0           conv2d_17[0][0]                  
+____________________________________________________________________________________________________
+dropout_21 (Dropout)             (None, 6, 6, 128)     0           max_pooling2d_15[0][0]           
+____________________________________________________________________________________________________
+conv2d_18 (Conv2D)               (None, 6, 6, 128)     147584      dropout_21[0][0]                 
+____________________________________________________________________________________________________
+max_pooling2d_16 (MaxPooling2D)  (None, 3, 3, 128)     0           conv2d_18[0][0]                  
+____________________________________________________________________________________________________
+dropout_22 (Dropout)             (None, 3, 3, 128)     0           max_pooling2d_16[0][0]           
+____________________________________________________________________________________________________
+global_max_pooling2d_4 (GlobalMa (None, 128)           0           dropout_22[0][0]                 
+____________________________________________________________________________________________________
+aux_input (InputLayer)           (None, 1)             0                                            
+____________________________________________________________________________________________________
+concatenate_4 (Concatenate)      (None, 129)           0           global_max_pooling2d_4[0][0]     
+                                                                   aux_input[0][0]                  
+____________________________________________________________________________________________________
+batch_normalization_4 (BatchNorm (None, 129)           516         concatenate_4[0][0]              
+____________________________________________________________________________________________________
+dense_7 (Dense)                  (None, 512)           66560       batch_normalization_4[0][0]      
+____________________________________________________________________________________________________
+dropout_23 (Dropout)             (None, 512)           0           dense_7[0][0]                    
+____________________________________________________________________________________________________
+dense_8 (Dense)                  (None, 256)           131328      dropout_23[0][0]                 
+____________________________________________________________________________________________________
+dropout_24 (Dropout)             (None, 256)           0           dense_8[0][0]                    
+____________________________________________________________________________________________________
+is_iceberg (Dense)               (None, 1)             257         dropout_24[0][0]                 
+====================================================================================================
+Total params: 1,243,921
+Trainable params: 1,243,657
+Non-trainable params: 264
+____________________________________________________________________________________________________
+]
+}
+]
+icebergs = True
+if icebergs:
+    compile_kwargs = {'loss': 'binary_crossentropy', 'optimizer': 'adam', 'metrics': ['accuracy']}
+else:
+    compile_kwargs = {'loss': 'mse', 'optimizer': 'adam', 'metrics': ['mae']}
+model = create_cnn(iceberg_predict=icebergs)
+model.compile(**compile_kwargs)
+callbacks = create_callbacks(iceberg_predict=icebergs)
+plot_examples(n=examples, idx_list=ice_idx, normed=True);
+# model.fit_generator(train_flow, steps_per_epoch=(len(train_targets)*2)/batch_size,
+#                     epochs=epochs,
+#                     validation_data=valid_flow, 
+#                     validation_steps=len(valid_targets)/batch_size,
+#                     callbacks=list(callbacks.values()))
+
+model.fit([train_tensors, train_angle], train_targets, epochs=epochs, callbacks=list(callbacks.values()), 
+          validation_data=([valid_tensors, valid_angle], valid_targets))
+model.load_weights(os.path.join('saved_models', 'cnn.{}.best.weights.hdf5'.format('ice' if icebergs else 'angle')))
+### Ships
+ship_idx = plot_examples(examples, iceberg=False);
+plot_examples(examples, iceberg=False, idx_list=ship_idx, normed=True);
+## plot.ly Visualization
+def random_ex():
+    return np.random.randint(0, examples)
+icenum = random_ex()
+plot_3d_example(df.band_1.iloc[ice_idx[icenum]].reshape(75, 75), 'Iceberg #{} from Above'.format(icenum+1))
+shipnum = random_ex()
+plot_3d_example(df.band_1.iloc[ship_idx[shipnum]].reshape(75, 75), 'Ship #{} from Above'.format(shipnum+1))
+## Split into Training, Validation, and Testing Sets
+x_train, x_valid, y_train, y_valid = train_test_split(all_tensors, filled_df[['is_iceberg', 'inc_angle']], random_state=42, test_size=.125)
+print(x_train.shape)
+print(x_valid.shape)
+angle_train = scale(y_train.inc_angle.values)
+angle_valid = scale(y_valid.inc_angle.values)
+print(angle_train.shape)
+print(angle_valid.shape)
+y_train = y_train.is_iceberg.values
+y_valid = y_valid.is_iceberg.values
+print(y_train.shape)
+print(y_valid.shape)
+## Augment Training Data
+from keras.preprocessing.image import ImageDataGenerator
+#### Set options for training image data generator
+train_datagen = ImageDataGenerator(
+    horizontal_flip=True,
+    vertical_flip=True,
+    width_shift_range=.1, 
+    height_shift_range=.1, 
+    rotation_range=45,
+    zoom_range=.1,
+    fill_mode='wrap'
+)
+#### Set default batch size
+batch_size = 16
+#### Expand keras ImageDataGenerator functionality to handle multiple inputs
+import itertools
+
+
+def take(n, iterable):
+    \"Return first n items of the iterable as a list\"
+    return list(itertools.islice(iterable, n))
+
+
+def img_and_aux_gen(datagen, tensors, aux_input, targets=None, batch_size=batch_size, shuffle=True):
+    # inspired by the following Kaggle notebook
+    # https://www.kaggle.com/sinkie/keras-data-augmentation-with-multiple-inputs
+    assert len(tensors) == len(aux_input)
+    assert len(tensors) == len(targets) if targets is not None else True
+    if targets is not None:
+        if shuffle:
+            flat_tensors = tensors.reshape(tensors.shape[0], 75*75*3)
+            aux_input_col = aux_input.reshape(aux_input.shape[0], 1)
+            targets_col = targets.reshape(targets.shape[0], 1)
+            Z = np.concatenate((flat_tensors, aux_input_col, targets_col), axis=1)
+            np.random.shuffle(Z)
+            shuffled_targets = Z[:, -1]
+            shuffled_aux_inputs = Z[:, -2]
+            shuffled_tensors = Z[:, :-2].reshape(tensors.shape)
+            img_gen = datagen.flow(x=shuffled_tensors, y=shuffled_targets, batch_size=batch_size, shuffle=False)
+            aux_gen = itertools.cycle(shuffled_aux_inputs)
+        else:
+            img_gen = datagen.flow(x=tensors, y=targets, batch_size=batch_size, shuffle=False)
+            aux_gen = itertools.cycle(aux_input)
+        while True:
+            x1, y = next(img_gen)
+            x2 = np.array(take(len(x1), aux_gen))
+            yield ([x1, x2], y)
+    else:
+        gen = datagen.flow(x=tensors, y=aux_input, batch_size=1, shuffle=False)
+        while True:
+            x1, x2 = next(gen)
+            yield ([x1, x2], )
+            
+            
+def test_gen(tensors_to_test, aux_input, targets=None):
+    return img_and_aux_gen(ImageDataGenerator(), tensors_to_test, aux_input, targets)
+## Create CNN
+from keras.layers import Conv2D, MaxPooling2D, Dense, GlobalMaxPool2D
+from keras.layers import Input, Flatten, concatenate, Activation
+from keras.layers import Dropout, BatchNormalization
+from keras.models import Model
+#### Define custom model architecture
+def build_cnn(iceberg_predict=True):
+    # inputs
+    radar_input, aux_input = get_inputs()
+    
+    # computer vision model for 3-banded radar image
+    x = Conv2D(64, kernel_size=3, padding='same', activation='relu')(radar_input)
+    x = Conv2D(64, kernel_size=3, padding='same', activation='relu')(x)
+    x = MaxPooling2D(pool_size=2)(x)
+    x = Dropout(.3)(x)
+    for _ in range(2):
+        x = Conv2D(128, kernel_size=3, padding='same', activation='relu')(x)
+    x = MaxPooling2D(pool_size=2)(x)
+    x = Dropout(.3)(x)
+    for _ in range(2):
+        x = Conv2D(256, kernel_size=3, padding='same', activation='relu')(x)
+    x = MaxPooling2D(pool_size=2)(x)
+    x = Dropout(.3)(x)
+    radar_output = Flatten()(x)
+    
+    # add auxiliary input and combine into concatenate layer
+    combined_inputs = concatenate([radar_output, aux_input])
+    
+    # feed both into fully-connected layers
+    x = Dense(1024, activation='relu')(combined_inputs)
+    x = Dropout(.3)(x)
+    x = Dense(1024, activation='relu')(x)
+    x = Dropout(.2)(x)
+    
+    # final output
+    last_act = 'sigmoid' if iceberg_predict else None
+    last_name = 'is_iceberg' if iceberg_predict else 'inc_angle'
+    output = Dense(1, activation=last_act, name=last_name)(x)
+    
+    # model definition and summary
+    model = Model(inputs=[radar_input, aux_input], outputs=output)
+    model.summary()
+    
+    return model
+#### Make blocks of layers
+def BatchNorm_Activation_block(y, activation):
+    y = BatchNormalization()(y)
+    y = Activation(activation)(y)
+    return y
+def Convolutional_block(y, n_filters, activation, n_Conv=1, drop_rate=0, is_last=False):
+    for _ in range(n_Conv):
+        y = Conv2D(n_filters, 3)(y)
+        if 0 < drop_rate < 1: 
+            y = Dropout(drop_rate)(y)
+        y = BatchNorm_Activation_block(y, activation)
+    return y
+def Dense_block(y, units, activation, drop_rate=.5):
+    y = Dense(units)(y)
+    y = BatchNorm_Activation_block(y, activation)
+    if 0 < drop_rate < 1:
+        y = Dropout(drop_rate)(y)
+    return y
+def SAF_pooling(y, drop_rate=.5):
+    return Dropout(drop_rate)(MaxPooling2D(2)(y))
+def get_inputs():
+    radar_img_shape = all_tensors.shape[1:]
+    radar_input = Input(shape=radar_img_shape, name='radar_image')
+    aux_input = Input(shape=(1,), name='aux_input')
+    return radar_input, aux_input
+#### SimpNet CNN
+Please see [Towards Principled Design of Deep Convolutional Networks: Introducing SimpNet](https://arxiv.org/pdf/1802.06205.pdf) for more information about the architecture (page 9) and motivation. 
+def build_SimpNet(act='relu', cnn_drop_rate=0, fc_drop_rate=.5):
+    # inputs
+    radar_input, aux_input = get_inputs()
+    
+    
+    # SimpNet CNN architecture
+    x = Convolutional_block(radar_input, 66, act, drop_rate=cnn_drop_rate)
+    x = Convolutional_block(x, 128, act, n_Conv=3, drop_rate=cnn_drop_rate)
+    x = Convolutional_block(x, 192, act, drop_rate=cnn_drop_rate)
+    x = SAF_pooling(x)
+    x = Convolutional_block(x, 192, act, n_Conv=4, drop_rate=cnn_drop_rate)
+    x = Convolutional_block(x, 288, act, drop_rate=cnn_drop_rate)
+    x = SAF_pooling(x)
+    x = Convolutional_block(x, 288, act, drop_rate=cnn_drop_rate)
+    x = Convolutional_block(x, 355, act, drop_rate=cnn_drop_rate)
+    x = Convolutional_block(x, 432, act, drop_rate=cnn_drop_rate)
+    radar_output = GlobalMaxPool2D()(x)
+    
+    # concatenate aux input
+    combined = concatenate([radar_output, aux_input])
+    
+    # short FC layers
+    x = Dense_block(combined, 1024, act, drop_rate=fc_drop_rate)
+    x = Dense_block(x, 1024, act, drop_rate=fc_drop_rate)
+    output = Dense(1, activation='sigmoid', name='is_iceberg')(x)
+    
+    # model definition and summary
+    model = Model([radar_input, aux_input], output, name='SimpNet')
+    model.summary()
+#     plot_model(model, to_file='cnn-simpnet.png')
+    
+    return model
+#### Define callbacks and pretty progress bars
+from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
+from keras_tqdm import TQDMNotebookCallback 
+
+
+def create_callbacks(version, name):
+    # save best model checkpoint
+    cnn_name = 'cnn.{}.v{}.best.weights.hdf5'.format(name, version)
+    try:
+        os.mkdir('saved_models')
+    except FileExistsError:
+        pass
+    save_best = ModelCheckpoint(filepath=os.path.join('saved_models', cnn_name), 
+                                save_best_only=True, save_weights_only=True, verbose=1)
+    # early stopping 
+    early_stop = EarlyStopping(monitor='val_loss', verbose=1, patience=10)
+    
+    # reduce learning rate on plateau
+    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=3, verbose=1)
+    
+    # pretty progress bars
+    pbar = TQDMNotebookCallback(leave_inner=True, leave_outer=True)
+    
+    return {'early_stop': early_stop, 'save_best': save_best, 'reduce_lr': reduce_lr, 'pbar': pbar}
+version = 3
+
+callbacks = create_callbacks(version, 'simpnet')
+callback_list = list(callbacks.values())
+#### Create model and output summary
+The flag `icebergs` is a remnant from a failed experiment to predict the incidence angle from the whole image. This I realize would obviously fail, as a CNN recognizes shapes in the image, and couldn't by the intensity of those shapes necessarily predict a viewing angle. 
+
+Other approaches are necessary, but I keep the compilation keywords for reuse/posterity.
+icebergs = True
+if icebergs:
+    compile_kwargs = {'loss': 'binary_crossentropy', 
+                      'optimizer': 'adam', 
+                      'metrics': ['accuracy']}
+else:
+    compile_kwargs = {'loss': 'mse', 'optimizer': 'adam', 'metrics': ['mae']}
+# model = build_cnn(iceberg_predict=icebergs)
+model = build_SimpNet()
+model.compile(**compile_kwargs)
+#### Gather fit parameters
+Note we expand the training data beyond the original ~1400 tensors. 
+epochs = 100
+desired_training_size = 3200
+steps_per_epoch = int(desired_training_size/batch_size+.5)
+for stat, num in zip(['batch size', 'steps per epoch', 'training tensors size'], [batch_size, steps_per_epoch, steps_per_epoch*batch_size]):
+    print('{:23} = {}'.format(stat, num))
+#### Create multi-input training and validation generators
+train_flow = img_and_aux_gen(train_datagen, x_train, angle_train, y_train)
+valid_flow = test_gen(x_valid, angle_valid, y_valid)
+#### Fit the model to the data
+model.fit_generator(train_flow, 
+                    steps_per_epoch=steps_per_epoch, # number of batches of training samples per epoch
+                    epochs=epochs,
+                    validation_data=valid_flow, 
+                    validation_steps=len(x_valid),
+                    callbacks=callback_list,
+                    workers=8,
+                    verbose=1);
+## Make Predictions on Test Data
+#### Prepare test tensors and incidence angles
+test_df = pd.read_json(os.path.join('input', 'test.json'))
+process_df(test_df)
+test_tensors = make_tensors(test_df)
+test_angle = scale(test_df.inc_angle.values)
+model.load_weights(os.path.join('saved_models', 'cnn.{}.v{}.best.weights.hdf5'.format('simpnet', version)))
+#### Generate predictions
+preds = model.predict([test_tensors, test_angle])
+train_eval = model.evaluate([all_tensors, scale(filled_df.inc_angle.values)], filled_df.is_iceberg.values)
+print('metrics on training set'.center(40, '-'))
+print(model.loss.ljust(len(model.loss)+5), '=', round(train_eval[0], 6))
+print(model.metrics[0].ljust(len(model.loss)+5), '=', '{:2.3f}%'.format(train_eval[1]*100))
+#### Distribution of iceberg probability predictions
+x_label = 'iceberg probability'
+ax = sns.distplot(preds, axlabel=x_label, label='TEST', bins=50, kde=False)
+## Package submission
+submission = pd.DataFrame({'id': test_df.id, 'is_iceberg': preds.reshape(preds.shape[0])})
+submission.head(10)
+csv_name = 'simpnet_cnn_scale_angle_more_augmentation.csv'
+submission.to_csv(os.path.join('output', csv_name), index=False)
