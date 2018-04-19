@@ -2,9 +2,9 @@
 Udacity MLND capstone
 
 ## Language
-Python 3
+**Python 3.6.4**
 
-## Software Libraries
+### Software Libraries
 - Keras
 - TensorFlow
 - TensorFlow-GPU
@@ -16,11 +16,11 @@ Python 3
 - cudnn
 - tqdm-keras
 
-## Visualization Libraries
+### Visualization Libraries
 - Seaborn
 - Plotly
 
-## Full list
+### Full list
 ```
 $ conda list
 # packages in environment at C:\Users\[redacted]\Miniconda3\envs\cnn:
