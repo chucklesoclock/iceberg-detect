@@ -2,7 +2,7 @@
 Udacity MLND capstone
 
 ## Gathering Dataset
-Download from the Kaggle competition page linked in the [Capstone Report](capstone_report/capstone_report.md)
+Download from the Kaggle competition page linked in the [Capstone Report](capstone_report/capstone_report.md).
 
 ## Language
 **Python 3.6.4**
