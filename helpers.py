@@ -1,6 +1,7 @@
 import warnings
 import numpy as np
 from functools import reduce
+from sklearn.preprocessing import scale
 
 
 def process_df(df):
@@ -26,6 +27,17 @@ def process_df(df):
             print('inc_angle reclassified as floats with NaNs!')
         except TypeError:
             print('inc_angle already all floats')
+
+
+def make_tensors(df):
+    # for each band, stack the normalized img arrays on top of each other
+    norm_band_1 = np.stack(scale(arr) for arr in np.array(df.band_1))
+    norm_band_2 = np.stack(scale(arr) for arr in np.array(df.band_2))
+    norm_band_3 = np.stack(scale(arr) for arr in np.array(df.band_3))
+    # combine the normalized bands into three channels
+    flat_tensors = np.stack([norm_band_1, norm_band_2, norm_band_3], axis=-1)
+    # return tensors reshaped into 75x75 radar images
+    return flat_tensors.reshape(flat_tensors.shape[0], 75, 75, 3)
 
 
 def L(x):
