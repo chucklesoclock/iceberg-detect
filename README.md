@@ -5,24 +5,25 @@ Udacity MLND capstone
 Python 3
 
 ## Software Libraries
-Keras
-TensorFlow
-TensorFlow-GPU
-SciKit-Learn
-Pandas
-NumPy
-SciPy
-Jupyter Notebook
-cudnn
-tqdm-keras
+- Keras
+- TensorFlow
+- TensorFlow-GPU
+- SciKit-Learn
+- Pandas
+- NumPy
+- SciPy
+- Jupyter Notebook
+- cudnn
+- tqdm-keras
 
 ## Visualization Libraries
-Seaborn
-Plotly
+- Seaborn
+- Plotly
 
 ## Full list
+```
 $ conda list
-# packages in environment at C:\Users\charl\Miniconda3\envs\cnn:
+# packages in environment at C:\Users\[redacted]\Miniconda3\envs\cnn:
 #
 # Name                    Version                   Build  Channel
 asn1crypto                0.24.0                   py36_0
@@ -141,3 +142,4 @@ winpty                    0.4.3                         4
 wrapt                     1.10.11          py36he5f5981_0
 yaml                      0.1.7                hc54c509_2
 zlib                      1.2.11               h8395fce_2
+```
