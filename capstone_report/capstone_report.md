@@ -22,7 +22,7 @@ Much like the "blips" on ships' radar in the movies, objects in the ocean are re
 
 After identification on the SAR image described above, analysis is required to correctly identify the remotely sensed object. In our case, we are given the task of discriminating between ocean-going vessels and floating icebergs, which pose a significant danger. A [recent article from the European Space Agency](http://www.esa.int/Our_Activities/Observing_the_Earth/Satellites_guide_ships_in_icy_waters_through_the_cloud) exposes the apparent benefits from such technology: the ability to programmatically detect threats to shipping and "navigate through...notoriously icy waters". The approach presented in this paper will leverage deep learning and convolutional neural networks (CNNs) to learn what which features of a radar image determine an iceberg. A similar approach applied to the same problem is outlined by [Bentes, Frost, Velotto, and Tings (2016)](http://elib.dlr.de/99079/2/2016_BENTES_Frost_Velotto_Tings_EUSAR_FP.pdf), going as far to also be written in Python, but using the ML library Theano. The solution presented here will differ by preprocessing methods, the extra feature of the incidence angle, the software backend supporting the neural network (TensorFlow via Keras), and the specific CNN architecture employed to perform the classification. 
 
-In the end, this will probably end up being a Bentes replication submission. 
+My prediction is that best results will come with a custom architecture using the Bentes normalization, since we don't have access to his architecture but his methods seem sound. 
 
 #### Input Data
 
@@ -96,7 +96,7 @@ Finally, we must add a third channel set to the mean of `band_1` and `band_2`, s
 
 Since this is side-looking radar from a satellite, backscatter levels can be affected by the viewing and receiving angle, which may be important to include in our model's analyses. 
 
-Kaggle alerts us to the fact that the training data involves a number of missing incidence angles, all occuring when the image contains an ocean-going vessel. See below. 
+Kaggle alerts us to the fact that the training data involves a number of missing incidence angles, all occurring when the image contains an ocean-going vessel. See below. 
 
 ![filled vs dropped NaN angles]()
 
@@ -128,7 +128,9 @@ The first and most important for detecting edges and shapes are the convolutiona
 
 **ADD SUMMARY OR EXPLANATION OF SIMPNET HERE** 
 
-**ADD CONCAT IDEA HERE**
+Also to note is that we haven't mentioned the incidence angles yet. If we went through the trouble of filling the missing angles, we might as well use them in our initial analysis, right? 
+
+To address this, we must use the functional model of Keras to combine the output of the CNN with the scaled incidence angle using a `concatenate` layer. This allows multiple inputs to be combined in a single layer, which will then be fed forward to the fully connected layers for further analysis. 
 
 ### Benchmark
 To benchmark our solutions locally, we rely on the performance of a "vanilla" neural network. This non-CNN has a few layers of fully-connect nodes and outputs the same probability values that our CNN will. By uploading to Kaggle and viewing its log loss, we obtain a baseline from which to iterate upon. 
@@ -139,31 +141,56 @@ Furthermore, baseline model results have been calculated from setting outputted 
 > 
 >We must submit each to the [Kaggle submission page](https://www.kaggle.com/c/statoil-iceberg-classifier-challenge/submit) for calculation of log loss, as we do not have access to the true labels of the testing data. 
 
+We have since taken as gospel the fact that the leaderboard is calculated with the private score which is 80% of the data and combined it with the public score which is calculated with 20% of the data. Even though it's not explicit that the intersection of these two subsets is non-empty, we pretend it is. 
 
-|           Baseline Model           | `is_iceberg =` | log loss (private 80% / public 20%)|
-|------------------------------------|----------------|-----------------------------------:|
-| certain iceberg                    | 1.0            |                  16.3468 / 16.5210 |
-| certain not iceberg                | 0.0            |                  18.1922 / 18.0180 |
-| indecisive                         | 0.5            |                    0.6931 / 0.6931 |
-| proportion of icebergs in training | 0.469451       |                    0.6982 / 0.6976 |
+
+|           Baseline Model           | `is_iceberg =` | Log Loss |
+|------------------------------------|----------------|---------:|
+| certain iceberg                    | 1.0            | 16.38164 |
+| certain not iceberg                | 0.0            | 18.15736 |
+| indecisive                         | 0.5            |   0.6931 |
+| proportion of icebergs in training | 0.469451       |  0.69808 |
 
 As a comparison:
 
-| Model          | Log Loss (public 20%) |
-|----------------|-----------------------|
-| current leader | 0.0869                |
+| Model          | Log Loss (private 80%) |
+|----------------|------------------------|
+| leader         | 0.0822                 |
 
-**ADD NEURAL NETWORK NUMBERS HERE**
+The `certain iceberg` and `certain not iceberg` baseline models can be thought of as the worst we can do, without having access to the labels and guessing completely wrong each time. We can infer that there are more iceberg examples than ships in the testing set, as confirmed by a constant prediction of just `< 0.5` being worse than a constant guess of `0.5`.
 
-In this section, you will need to provide a clearly defined benchmark result or threshold for comparing across performances obtained by your solution. The reasoning behind the benchmark (in the case where it is not an established result) should be discussed. Questions to ask yourself when writing this section:
-- _Has some result or value been provided that acts as a benchmark for measuring performance?_
-- _Is it clear how this result or value was obtained (whether by data or by hypothesis)?_
+Another benchmark is how a "vanilla" neural network would perform. By vanilla, we essentially mean a [multilayer perception](https://en.wikipedia.org/wiki/Multilayer_perceptron), with 3 fully connected layers of fully-connected does: one layer is the input, one the hidden, and one is the output, which consists of a single node. A picture is instructive in this case: 
 
+![mlp_example.png](mlp_example.png)
+
+Our vanilla or naive neural network performed somewhat better than the constant-outputting baseline models. We endeavor to outperform this benchmark.
+
+| Baseline Model               | Log Loss  |
+|------------------------------|-----------|
+| Naive Neural Network         | 0.4553    |
 
 ## III. Methodology
-_(approx. 3-5 pages)_
 
 ### Data Preprocessing
+As stated, after importing into a `pandas.DataFrame`, each of the two bands are flattened Python lists of floats.
+
+Keras expects the tensors (aka the packaged 3-banded radar image) to have the following dimensions:
+> (number of samples, height, width, 3)
+aka 
+> (num_samples, 75, 75, 3)
+
+Each pixel in the 75x75 image contains a vector with 3 entries for 3 bands. Two functions act to create a Keras 4D tensor, `helpers.process_df` and `helpers.make_tensors` (latter in the project notebook as well). The first adds the mean of the first two bands as the third band and reclassifies the incidence angles to `float64` with NaNs. The second goes through a couple of steps:
+
+1. Convert each band to a DataFrame-long `np.array`
+2. Scale/normalize each array in the long `np.array` 
+    - Since target object is not fixed, normalizing over the image is appropriate so that the CNN gets data it likes
+3. Stack each band's flat arrays on top of each other
+    - Now we have 3 bands of radar data, each of the same 75 * 75 = 5625 element long array
+4. Stack each normalized band along the last axis so that every pixel in the flattened array has 3 values, one for each band
+5. Finally, reshape each array into a 75x75 pixel image with 3 bands at each pixel
+
+
+
 In this section, all of your preprocessing steps will need to be clearly documented, if any were necessary. From the previous section, any of the abnormalities or characteristics that you identified about the dataset will be addressed and corrected here. Questions to ask yourself when writing this section:
 - _If the algorithms chosen require preprocessing steps like feature selection or feature transformations, have they been properly documented?_
 - _Based on the **Data Exploration** section, if there were abnormalities or characteristics that needed to be addressed, have they been properly corrected?_
