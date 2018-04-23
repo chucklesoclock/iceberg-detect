@@ -185,11 +185,11 @@ Each pixel in the 75x75 image contains a vector with 3 entries for 3 bands. Two 
 2. Scale/normalize each array in the long `np.array` 
     - Since target object is not fixed, normalizing over the image is appropriate so that the CNN gets data it likes
 3. Stack each band's flat arrays on top of each other
-    - Now we have 3 bands of radar data, each of the same 75 * 75 = 5625 element long array
+    - Now we have 3 bands of radar data, each of the same (75x75 pixel equal to) 5625 element long array
 4. Stack each normalized band along the last axis so that every pixel in the flattened array has 3 values, one for each band
 5. Finally, reshape each array into a 75x75 pixel image with 3 bands at each pixel
 
-
+The three "bands" of each radar immage refers to HV, HH, and the mean of the previous two, respectively. Thus we have normalized-by-image 3-banded  
 
 In this section, all of your preprocessing steps will need to be clearly documented, if any were necessary. From the previous section, any of the abnormalities or characteristics that you identified about the dataset will be addressed and corrected here. Questions to ask yourself when writing this section:
 - _If the algorithms chosen require preprocessing steps like feature selection or feature transformations, have they been properly documented?_
