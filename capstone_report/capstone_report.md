@@ -134,6 +134,12 @@ The first and most important for detecting edges and shapes are the convolutiona
 
 **ADD SUMMARY OR EXPLANATION OF SIMPNET HERE** 
 
+SimpNet, like most CNN architectures, works because it does, rather than some application of theory (). A custom CNN build scored better, but that code was lost in a freak git accident. SimpNet was found for its accuracy on the **WHATEVER DATABASE** and its block-like design, allowing for meta-learning refinement later. 
+
+In the paper, 
+
+**END OF SIMPNET DISCUSSION**
+
 Also to note is that we haven't mentioned the incidence angles yet. If we went through the trouble of filling the missing angles, we might as well use them in our initial analysis, right? 
 
 To address this, we must use the functional model of Keras to combine the output of the CNN with the scaled incidence angle using a `concatenate` layer. This allows multiple inputs to be combined in a single layer, which will then be fed forward to the fully connected layers for further analysis. 
