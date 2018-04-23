@@ -77,18 +77,23 @@ This means that (1) we must create our own validation set from the smallish data
 
 #### Radar Data
 
-As noted in the introduction, a radar band's image data is composed of the decibel levels of backscatter, equivalent to the intensity of the reflected radar pulse for some predetermined pixel-to-area conversion. See below for heatmapped 2D illustrations 
+As noted in the introduction, a radar band's image data is composed of the decibel levels of backscatter, equivalent to the intensity of the reflected radar pulse for some predetermined pixel-to-area conversion. See below for heatmapped 2D illustrations:
+##### Before By-Image Normalization
+![heatmap of 4 icebergs](ice_pre_norm.png)
+![heatmap of 4 ships](ship_pre_norm.png)
 
-![heatmap of 4 icebergs]()
-![heatmap of 4 ships]()
+##### After By-Image Normalization
+![heatmap of 4 icebergs normed](ice_post_norm.png)
+![heatmap of 4 ships](ship_post_norm.png)
 
-The above is an example of the `band_1` aka transmit/receive horizontally (HH) radar data. We choose one of the icebergs and display its Q-Q plot, which measures the data's normal distribution tendencies. 
+Both above are examples of the `band_1` aka transmit/receive horizontally (HH) radar data. We choose one of the icebergs and display its Q-Q plot, which measures the data's normal distribution tendencies. 
 
-![q-q of iceberg pre/post bentes]()
+##### Normalization by Image
+![q-q of iceberg regular normalization](q-q_iceberg_norm.png)
 
 Note that it is somewhat normally distributed, but the bright spots of the area of interest (i.e. the iceberg or ocean-going vessel) makes it more heavily right-tailed. For our first pass, we are going to leave the normalized values where they are and observe performance. 
 
-Also to note is that we will be normalizing over each band, rather than by pixel across the entire dataset. This is for the now obvious reason that icebergs' and ships' backscatters are not fixed (aka since icebergs are, in fact, not uniformly made). Therefore the model should learn to expect edges in different places in the image. 
+Also to note is that we will be normalizing over each band, rather than by pixel across the entire dataset. This is for the now obvious reason that the backscatter from the icebergs' and ships' areas of interest are not fixed (since icebergs are, in fact, not uniformly made). Therefore the model should learn to expect edges in different places in the image. 
 
 Finally, we must add a third channel set to the mean of `band_1` and `band_2`, since Keras expects 1- or 3-channeled images (equivalent to grayscale or RGB images). This is accomplished through the `process_df` function applied early in the Jupyter notebook. 
 
@@ -98,17 +103,17 @@ Since this is side-looking radar from a satellite, backscatter levels can be aff
 
 Kaggle alerts us to the fact that the training data involves a number of missing incidence angles, all occurring when the image contains an ocean-going vessel. See below. 
 
-![filled vs dropped NaN angles]()
+![filled vs dropped NaN angles](q-q_angle_drop_vs_fill.png)
 
-After classifying them as `np.NaN`, a decision must be made on how to handle the missing data. At this juncture, filling the missing incidence angle with the mean of the ship's incidence angles seems like a reasonable first step. 
+After classifying them as `np.NaN`, a decision must be made on how to handle the missing data. At this juncture, filling the missing incidence angles with the mean of incidence angles from ships only seems like a reasonable first step. 
 
 Next, a minimum value is well away from the normalized values when viewed on a Q-Q plot. 
 
-![q-q pre/post minimum drop]()
+![q-q pre/post minimum drop](q-q_angle_min_drop.png)
 
-I chose to drop this minimum incidence as an outlier and fill the missing , since the training set is on the smaller size anyway. You can see the effects on the following Seaborn distplot: 
+I chose to drop this minimum incidence angle as an outlier and fill the missing angles, since the training set is on the smaller size anyway. You can see the effects on the following Seaborn distplot: 
 
-![distplot of angles after filling]()
+![distplot of angles after filling](distplot_angles_post_fill.png)
 
 What we are left with is a somewhat normal-ish looking distribution which hopefully strikes the balance between lack of data and working within Keras limitations. 
 
@@ -116,8 +121,9 @@ What we are left with is a somewhat normal-ish looking distribution which hopefu
 
 I invite you to explore an interactive surface plot of an iceberg or ship thanks to `plotly` and [this helpful Kaggle notebook](https://www.kaggle.com/devm2024/keras-model-for-beginners-0-210-on-lb-eda-r-d).
 
-![plotly view of ship/iceberg](./capstone_report/normalized_dB_3d.png)
-![plotly view of bentes normalized ship/iceberg](./capstone_report/bentes_dB_3d.png)
+Interactive features are located in the project report notebook, but below is a normalized view.  
+
+![plotly view of ship/iceberg](pre_bentes.png)
 
 ### Algorithms and Techniques
 The approach employed will largely mirror cited articles. After pre-processing and normalization techniques are applied, a convolutional neural network, or CNN, will be constructed and trained on the labeled radar images. This is the computer vision industry standard approach to object recognition in images. 
@@ -189,12 +195,11 @@ Each pixel in the 75x75 image contains a vector with 3 entries for 3 bands. Two 
 4. Stack each normalized band along the last axis so that every pixel in the flattened array has 3 values, one for each band
 5. Finally, reshape each array into a 75x75 pixel image with 3 bands at each pixel
 
+We selected all features at this stage and let the nodes be active or quiet depending training.
 
+Further improvements might refine this section using a published transformation method. 
 
-In this section, all of your preprocessing steps will need to be clearly documented, if any were necessary. From the previous section, any of the abnormalities or characteristics that you identified about the dataset will be addressed and corrected here. Questions to ask yourself when writing this section:
-- _If the algorithms chosen require preprocessing steps like feature selection or feature transformations, have they been properly documented?_
-- _Based on the **Data Exploration** section, if there were abnormalities or characteristics that needed to be addressed, have they been properly corrected?_
-- _If no preprocessing is needed, has it been made clear why?_
+Finally, the incidence angle has been preprocessed by filling NaNs by the mean and dropping the entry with the lowest angle as noted above. 
 
 ### Implementation
 In this section, the process for which metrics, algorithms, and techniques that you implemented for the given data will need to be clearly documented. It should be abundantly clear how the implementation was carried out, and discussion should be made regarding any complications that occurred during this process. Questions to ask yourself when writing this section:
