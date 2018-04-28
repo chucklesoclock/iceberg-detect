@@ -71,7 +71,7 @@ For completeness, an entry in `train.json` and `test.json` contains the followin
 
 There are 851 (53.05%) training examples of ships and 753 (46.95%) training examples of icebergs. 
 
-![training set distribution](/capstone_report/train_data_dist.png)
+![training set distribution](./imgs/train_data_dist.png)
 
 This means that (1) we must create our own validation set from the smallish dataset, and since this doesn't leave us with a lot of training examples, we must therefore (2) find ways to augment the training set with `keras` methods to improve the model's predictive power. 
 
@@ -79,17 +79,17 @@ This means that (1) we must create our own validation set from the smallish data
 
 As noted in the introduction, a radar band's image data is composed of the decibel levels of backscatter, equivalent to the intensity of the reflected radar pulse for some predetermined pixel-to-area conversion. See below for heatmapped 2D illustrations:
 ##### Before By-Image Normalization
-![heatmap of 4 icebergs](ice_pre_norm.png)
-![heatmap of 4 ships](ship_pre_norm.png)
+![heatmap of 4 icebergs](./imgs/ice_pre_norm.png)
+![heatmap of 4 ships](./imgs/ship_pre_norm.png)
 
 ##### After By-Image Normalization
-![heatmap of 4 icebergs normed](ice_post_norm.png)
-![heatmap of 4 ships](ship_post_norm.png)
+![heatmap of 4 icebergs normed](./imgs/ice_post_norm.png)
+![heatmap of 4 ships](./imgs/ship_post_norm.png)
 
 Both above are examples of the `band_1` aka transmit/receive horizontally (HH) radar data. We choose one of the icebergs and display its Q-Q plot, which measures the data's normal distribution tendencies. 
 
 ##### Normalization by Image
-![q-q of iceberg regular normalization](q-q_iceberg_norm.png)
+![q-q of iceberg regular normalization](./imgs/q-q_iceberg_norm.png)
 
 Note that it is somewhat normally distributed, but the bright spots of the area of interest (i.e. the iceberg or ocean-going vessel) makes it more heavily right-tailed. For our first pass, we are going to leave the normalized values where they are and observe performance. 
 
@@ -121,9 +121,9 @@ What we are left with is a somewhat normal-ish looking distribution which hopefu
 
 I invite you to explore an interactive surface plot of an iceberg or ship thanks to `plotly` and [this helpful Kaggle notebook](https://www.kaggle.com/devm2024/keras-model-for-beginners-0-210-on-lb-eda-r-d).
 
-Interactive features are located in the project report notebook, but below is a normalized view.  
+Interactive features are located in the [project report notebook](../project_notebook.ipynb), but below is a static view.  
 
-![plotly view of ship/iceberg](pre_bentes.png)
+![plotly view of ship/iceberg](./imgs/pre_bentes.png)
 
 ### Algorithms and Techniques
 The approach employed will largely mirror cited articles. After pre-processing and normalization techniques are applied, a convolutional neural network, or CNN, will be constructed and trained on the labeled radar images. This is the computer vision industry standard approach to object recognition in images. 
@@ -173,7 +173,7 @@ The `certain iceberg` and `certain not iceberg` baseline models can be thought o
 
 Another benchmark is how a "vanilla" neural network would perform. By vanilla, we essentially mean a [multilayer perception](https://en.wikipedia.org/wiki/Multilayer_perceptron), with 3 fully connected layers of fully-connected does: one layer is the input, one the hidden, and one is the output, which consists of a single node. A picture is instructive in this case: 
 
-![mlp_example.png](mlp_example.png)
+![mlp_example.png](./imgs/mlp_example.png)
 
 Our vanilla or naive neural network performed somewhat better than the constant-outputting baseline models. We endeavor to outperform this benchmark.
 
@@ -187,11 +187,18 @@ Our vanilla or naive neural network performed somewhat better than the constant-
 As stated, after importing into a `pandas.DataFrame`, each of the two bands are flattened Python lists of floats.
 
 Keras expects the tensors (aka the packaged 3-banded radar image) to have the following dimensions:
-> (number of samples, height, width, 3)
-aka 
-> (num_samples, 75, 75, 3)
+> (number of samples, height, width, 3) = (num_samples, 75, 75, 3)
 
-Each pixel in the 75x75 image contains a vector with 3 entries for 3 bands. Two functions act to create a Keras 4D tensor, `helpers.process_df` and `helpers.make_tensors` (latter in the project notebook as well). The first adds the mean of the first two bands as the third band and reclassifies the incidence angles to `float64` with NaNs. The second goes through a couple of steps:
+Each pixel in the 75x75 image contains a vector with 3 entries for 3 bands. Two functions act to create a Keras 4D tensor, [`helpers.process_df`](../helpers.py#L7) and [`helpers.make_tensors`](../helpers.py#L32) (latter in the project notebook as well). 
+
+#### `process_df(df)`
+
+Given a DataFrame, this function adds the mean of the first two bands as the third band in a new column, and also reclassifies the incidence angles to `float64` with NaNs. 
+
+The `if not isinstance` statement makes sure we're not reclassifying an array that has already been reclassified. Also, we mute `FutureWarnings` related to internal Pandas improvements when changing the incidence angle to floats by the `with warnings.catch_warnings():` and the simple warnings filter. 
+
+#### `make_tensors(df)`
+This function creates a package of 4-dimensional tensors for Keras in a couple of steps: 
 
 1. Convert each band to a DataFrame-long `np.array`
 2. Scale/normalize each array in the long `np.array` 
@@ -203,11 +210,19 @@ Each pixel in the 75x75 image contains a vector with 3 entries for 3 bands. Two 
 
 We selected all features at this stage and let the nodes be active or quiet depending training.
 
+#### `inc_angle`
+
 Further improvements might refine this section using a published transformation method. 
 
 Finally, the incidence angle has been preprocessed by filling NaNs by the mean and dropping the entry with the lowest angle as noted above. 
 
 ### Implementation
+As always, the first thing we do is separate our training data into training and validation subsets. With a validation size of 12.5% of the training DataFrame, we have 1402 training tensors and 201 validation tensors out of 1604 total tensors. Testing data will be loaded later and scored by Kaggle. 
+
+By visualizing 4 random ships and icebergs, we can detect the general characteristics allow us as humans to discriminate ships and icebergs (ships having regular/straight edges with sometimes a haloed effect, but the CNN will zero in on to pick apart the harder cases. 
+
+I set the batch size to something manageable and a multiple of my processors, for my own comfort and to take advantage of parallel processing. Then, a Keras augmentation generator was created that will allow us to randomly create slightly 
+
 In this section, the process for which metrics, algorithms, and techniques that you implemented for the given data will need to be clearly documented. It should be abundantly clear how the implementation was carried out, and discussion should be made regarding any complications that occurred during this process. Questions to ask yourself when writing this section:
 - _Is it made clear how the algorithms and techniques were implemented with the given datasets or input data?_
 - _Were there any complications with the original metrics or techniques that required changing prior to acquiring a solution?_
