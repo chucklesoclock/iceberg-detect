@@ -103,17 +103,17 @@ Since this is side-looking radar from a satellite, backscatter levels can be aff
 
 Kaggle alerts us to the fact that the training data involves a number of missing incidence angles, all occurring when the image contains an ocean-going vessel. See below. 
 
-![filled vs dropped NaN angles](q-q_angle_drop_vs_fill.png)
+![filled vs dropped NaN angles](./imgs/q-q_angle_drop_vs_fill.png)
 
 After classifying them as `np.NaN`, a decision must be made on how to handle the missing data. At this juncture, filling the missing incidence angles with the mean of incidence angles from ships only seems like a reasonable first step. 
 
 Next, a minimum value is well away from the normalized values when viewed on a Q-Q plot. 
 
-![q-q pre/post minimum drop](q-q_angle_min_drop.png)
+![q-q pre/post minimum drop](./imgs/q-q_angle_min_drop.png)
 
 I chose to drop this minimum incidence angle as an outlier and fill the missing angles, since the training set is on the smaller size anyway. You can see the effects on the following Seaborn distplot: 
 
-![distplot of angles after filling](distplot_angles_post_fill.png)
+![distplot of angles after filling](./imgs/distplot_angles_post_fill.png)
 
 What we are left with is a somewhat normal-ish looking distribution which hopefully strikes the balance between lack of data and working within Keras limitations. 
 
@@ -132,7 +132,7 @@ Generally, a CNN works by creating some combination of layers specific to CNNs.
 
 The first and most important for detecting edges and shapes are the convolutional layer. This is usually a square filter slid across and down the image radar images that learns the shapes associated with that particular label (i.e. 0 for ship and 1 for iceberg). This deepens the spatial information available on a particular pixel. The second notable layer is a pooling layer, which averages or maxes a subset of usually >= 2x2 pixels on the radar image. This layer of the CNN usually follows a convolutional layer and works to shrink the dimensions of the informational object, while keeping the deepness that the convolution added. Finally, the other layer to be conversant in is the dropout layer, which randomly turns off some neurons in the network so that all of the architecture can be trained. This can be thought as "turning off" your dominant hand to learn how to sign your name with your off-hand, but in the case of nodes in a network. The theory is that, unlike a person, a fully-utilized neural network will generalize better than one with "asleep" nodes. 
 
-SimpNet, like most CNN architectures, works because it does, rather than some application of theory. One of my custom CNN builds scored better on this dataset, but that code was lost in a freak git accident. SimpNet was therefore found for its accuracy on many standard datasets, such as CIFAR10, CIFAR100, MNIST, and SVHN, and its block-like design, allowing for possible meta-learning refinement later. 
+SimpNet, like most CNN architectures, works because it does, rather than some application of theory. One of my custom CNN builds scored better on this dataset, but that code was lost in a freak git accident. SimpNet was therefore found for its accuracy on many standard datasets, such as CIFAR10, CIFAR100, MNIST, and SVHN, and its block-like design, allowing for possible refinement later. 
 
 In the paper, they reach for a combination of training simplicity and parameter reduction with performance. In their words, "it is highly desirable to design efficient (less complex) architectures with smaller number of layers and parameters, which are as good as their deeper and more complex counterparts. Such architectures can then be further tweaked using novel tricks from the literature" [(Hasanpour et al, 2018)](https://arxiv.org/pdf/1802.06205.pdf).
 
@@ -313,50 +313,57 @@ We prefer our original non-Bentes predictions because we were more confident in 
 ## IV. Results
 
 ### Model Evaluation and Validation
-In this section, the final model and any supporting qualities should be evaluated in detail. It should be clear how the final model was derived and why this model was chosen. In addition, some type of analysis should be used to validate the robustness of this model and its solution, such as manipulating the input data or environment to see how the model’s solution is affected (this is called sensitivity analysis). Questions to ask yourself when writing this section:
-- _Is the final model reasonable and aligning with solution expectations? Are the final parameters of the model appropriate?_
-- _Has the final model been tested with various inputs to evaluate whether the model generalizes well to unseen data?_
-- _Is the model robust enough for the problem? Do small perturbations (changes) in training data or the input space greatly affect the results?_
-- _Can results found from the model be trusted?_
+
+Many trials of SimpNet and other architectures were attempted but not recorded for posterity. This was an oversight in record keeping and may not be a fixable error. 
+
+When the CNN architecture was custom-built, the number of filters, layer building, and percentage/location of dropouts were all tweaked. 
+
+The final model is reasonable and aligns with moderate solution expectations. The final parameters may not be optimal without building the best architecture from available layers, but are appropriate for a expired competition and an overdue capstone. 
+
+The model has been validated with held-back training data, but cross-fold validation was not used as requiring too much training time. The model has been tested on unseen testing data as provided by the competition. 
+
+The model is moderately robust. A way to test this would be to train it on non-augmented training data and see the change in final score. Another more direct way to measure robustness is to add Gaussian "noise" to the training data and monitor results, as a measure of atmospheric interference, but it would be of unknown value. 
+
+The last question of trusting the results is interesting. Certainly the log loss is low, but without further access to the labels of the testing data, it would be a guess to determine full trustworthiness. An accuracy on the training set of 89.6% is nothing to sneeze at, certainly. I would say if the model is confident, take it at face value. If the model is somewhat confident and an analyst can confirm, then the model may be used. Of course, obtaining more verified training examples will only serve to increase model accuracy, to a point. 
 
 ### Justification
-In this section, your model’s final solution and its results should be compared to the benchmark you established earlier in the project using some type of statistical analysis. You should also justify whether these results and the solution are significant enough to have solved the problem posed in the project. Questions to ask yourself when writing this section:
-- _Are the final results found stronger than the benchmark result reported earlier?_
-- _Have you thoroughly analyzed and discussed the final solution?_
-- _Is the final solution significant enough to have solved the problem?_
+
+We restate the improvement over the baseline log loss and assert that we have found a stronger result than the benchmark. 
+
+|           Baseline Model           | `is_iceberg =` | Log Loss |
+|------------------------------------|----------------|---------:|
+| certain iceberg                    | 1.0            | 16.38164 |
+| certain not iceberg                | 0.0            | 18.15736 |
+| indecisive                         | 0.5            |   0.6931 |
+| proportion of icebergs in training | 0.469451       |  0.69808 |
+
+| Baseline Model               | Log Loss  |
+|------------------------------|-----------|
+| Naive Neural Network         | 0.4553    |
+
+| Final Model            | Log Loss  |
+| -----------------------|-----------|
+| SimpNet; no Bentes     | 0.2637    |
+
+Since logarithmic loss is a measure of "closeness of prediction", and we obtained a probability of `is_iceberg` distribution that made confident guesses on the testing set, then I argue the SimpNet result is a significant improvement over the naive neural network. I believe this model fully addresses the problem statement.  
 
 
 ## V. Conclusion
-_(approx. 1-2 pages)_
-
-### Free-Form Visualization
-
-In this section, you will need to provide some form of visualization that emphasizes an important quality about the project. It is much more free-form, but should reasonably support a significant result or characteristic about the problem that you want to discuss. Questions to ask yourself when writing this section:
-- _Have you visualized a relevant or important quality about the problem, dataset, input data, or results?_
-- _Is the visualization thoroughly analyzed and discussed?_
-- _If a plot is provided, are the axes, title, and datum clearly defined?_
 
 ### Reflection
-In this section, you will summarize the entire end-to-end problem solution and discuss one or two particular aspects of the project you found interesting or difficult. You are expected to reflect on the project as a whole to show that you have a firm understanding of the entire process employed in your work. Questions to ask yourself when writing this section:
-- _Have you thoroughly summarized the entire process you used for this project?_
-- _Were there any interesting aspects of the project?_
-- _Were there any difficult aspects of the project?_
-- _Does the final model and solution fit your expectations for the problem, and should it be used in a general setting to solve these types of problems?_
+
+In all, we have preprocessed radar data, converted it to a 3-banded image that will be packaged into Keras tensors, and dealt with missing and outlying data, visualized the data in novel ways, built and trained a convolutional neural network to classify icebergs, and attempted (but failed) to improve on our techniques. 
+
+The interesting details and the ones I am most proud of in this project are mostly the visualization; it is there that I had to stretch the most. Building the CNN required knowledge and/or experimentation that I found difficult since there is no theory to rely on. I am disappointed that I did not document my steps to creating and training a custom CNN architecture; I have a vague memory that a shallower model with less augmentation performed better. If I had to pick one area to improve on it is the model creation and tweaking process. I need to monitor training with more visualizations and better record-keeping during training to apply deep learning in a more rigorous fashion. If I had to pick some code I'm most proud of, it's the custom augmentation generators that matched up augmented images with their incidence angles correctly. 
+
+Being that the model is a static copy of architecture from a different project domain, I believe that it is sub-optimal; or at least, not as good as I could personally do. This is evidenced by the lost code performing better than SimpNet. However, SimpNet serves the purpose of showing that a CNN performs the classification task better than our baseline models.  
 
 ### Improvement
-In this section, you will need to provide discussion as to how one aspect of the implementation you designed could be improved. As an example, consider ways your implementation can be made more general, and what would need to be modified. You do not need to make this improvement, but the potential solutions resulting from these changes are considered and compared/contrasted to your current solution. Questions to ask yourself when writing this section:
-- _Are there further improvements that could be made on the algorithms or techniques you used in this project?_
-- _Were there algorithms or techniques you researched that you did not know how to implement, but would consider using if you knew how?_
-- _If you used your final solution as the new benchmark, do you think an even better solution exists?_
 
------------
+Beyond improving the model architecture itself, which has been discussed, since we have organized the SimpNet building process into blocks of layers, one could conceivably create a grid search of blocks and parameters to find a more optimal solution. This would drastically increase training time of course, but it is an avenue to solving the problem in a more through manner. 
 
-**Before submitting, ask yourself. . .**
+One way this model could be generalized is to make sure that it recognizes a 75x75 radar image of empty ocean as "not-iceberg" as well. At present, since our two classes both occupy high pixel values in the image, it is unknown what probability an image of only waves would return. 
 
-- Does the project report you’ve written follow a well-organized structure similar to that of the project template?
-- Is each section (particularly **Analysis** and **Methodology**) written in a clear, concise and specific fashion? Are there any ambiguous terms or phrases that need clarification?
-- Would the intended audience of your project be able to understand your analysis, methods, and results?
-- Have you properly proof-read your project report to assure there are minimal grammatical and spelling mistakes?
-- Are all the resources used for this project correctly cited and referenced?
-- Is the code that implements your solution easily readable and properly commented?
-- Does the code execute without error and produce results similar to those reported?
+If we were to use my final solution as a new benchmark, then I have no doubt a better solution exists. If I submitted to Kaggle during the competition window, my model would land in the lower of the middle third of submissions. The leader has a log loss of about 0.08, so there must be techniques and improvements that I am not aware of. 
+
+However, I believe this is a good first foray into the world of machine learning. Hope you had as much anguished fun reading this report as I did writing it. 
