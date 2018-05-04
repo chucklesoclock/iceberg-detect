@@ -45,8 +45,9 @@ def L(x):
 
 
 def bentes_norm(arr):
-    """"""
+    """Bentes et al nonlinear normalization of radar data"""
     Larr = np.fromiter((L(x) for x in arr), dtype=arr.dtype,
                        count=reduce(lambda a, b: a * b, arr.shape))
+    # Larr is now a flat array with L(x) applied to every elemenet in arr
     maxL = abs(Larr.max())
     return Larr / maxL
