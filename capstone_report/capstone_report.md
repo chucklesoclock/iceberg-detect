@@ -132,13 +132,9 @@ Generally, a CNN works by creating some combination of layers specific to CNNs.
 
 The first and most important for detecting edges and shapes are the convolutional layer. This is usually a square filter slid across and down the image radar images that learns the shapes associated with that particular label (i.e. 0 for ship and 1 for iceberg). This deepens the spatial information available on a particular pixel. The second notable layer is a pooling layer, which averages or maxes a subset of usually >= 2x2 pixels on the radar image. This layer of the CNN usually follows a convolutional layer and works to shrink the dimensions of the informational object, while keeping the deepness that the convolution added. Finally, the other layer to be conversant in is the dropout layer, which randomly turns off some neurons in the network so that all of the architecture can be trained. This can be thought as "turning off" your dominant hand to learn how to sign your name with your off-hand, but in the case of nodes in a network. The theory is that, unlike a person, a fully-utilized neural network will generalize better than one with "asleep" nodes. 
 
-**ADD SUMMARY OR EXPLANATION OF SIMPNET HERE** 
+SimpNet, like most CNN architectures, works because it does, rather than some application of theory. One of my custom CNN builds scored better on this dataset, but that code was lost in a freak git accident. SimpNet was therefore found for its accuracy on many standard datasets, such as CIFAR10, CIFAR100, MNIST, and SVHN, and its block-like design, allowing for possible meta-learning refinement later. 
 
-SimpNet, like most CNN architectures, works because it does, rather than some application of theory (). A custom CNN build scored better, but that code was lost in a freak git accident. SimpNet was found for its accuracy on the **WHATEVER DATABASE** and its block-like design, allowing for meta-learning refinement later. 
-
-In the paper, 
-
-**END OF SIMPNET DISCUSSION**
+In the paper, they reach for a combination of training simplicity and parameter reduction with performance. In their words, "it is highly desirable to design efficient (less complex) architectures with smaller number of layers and parameters, which are as good as their deeper and more complex counterparts. Such architectures can then be further tweaked using novel tricks from the literature" [(Hasanpour et al, 2018)](https://arxiv.org/pdf/1802.06205.pdf).
 
 Also to note is that we haven't mentioned the incidence angles yet. If we went through the trouble of filling the missing angles, we might as well use them in our initial analysis, right? 
 
@@ -169,7 +165,7 @@ As a comparison:
 |----------------|------------------------|
 | leader         | 0.0822                 |
 
-The `certain iceberg` and `certain not iceberg` baseline models can be thought of as the worst we can do, without having access to the labels and guessing completely wrong each time. We can infer that there are more iceberg examples than ships in the testing set, as confirmed by a constant prediction of just `< 0.5` being worse than a constant guess of `0.5`.
+The `certain iceberg` and `certain not iceberg` baseline models can be thought of as the worst we can do, without having access to the labels and guessing completely wrong each time. We can also infer that there are more ship examples than icebergs in the testing set, as confirmed by a constant prediction of `0.469` being slightly better than a constant guess of `0.5`.
 
 Another benchmark is how a "vanilla" neural network would perform. By vanilla, we essentially mean a [multilayer perception](https://en.wikipedia.org/wiki/Multilayer_perceptron), with 3 fully connected layers of fully-connected does: one layer is the input, one the hidden, and one is the output, which consists of a single node. A picture is instructive in this case: 
 
@@ -246,14 +242,74 @@ The next code block specifies some Keras callbacks, which help us influence the 
 1. `ModelCheckpoint` = saves the model with the best weights according to validation. This code also creates a separate directory in case it isn't already there. 
 2. `EarlyStopping` = stops training early once it becomes clear that we are overtraining the model, usually used in conjunction with the above; here patience (the number of epochs until termination) is set to 10 because epochs are short on my computer
 3. `ReduceLROnPlateau` = reduces learning rate when validation loss doesn't improve for a certain amount of epochs. From the docs: "Models often benefit from reducing the learning rate by a factor of 2-10 once learning stagnates. This callback monitors a quantity and if no improvement is seen for a 'patience' number of epochs, the learning rate is reduced." Thus learning becomes more coarse and easier to generalize, or at least that is the theory
-4. `TQDMNotebookCallback` = tqdm makes pretty epoch progress bars for model training which I personally enjoyed. These may have to be removed because on second viewing the Jupyter object loses its state and the pretty effect is lost. 
+4. `TQDMNotebookCallback` = tqdm makes pretty epoch progress bars for Keras model training in Jupyter notebook which I personally enjoyed. These may have to be removed because on second viewing the Jupyter object loses its state and the pretty effect is lost. 
 
-In this section, the process for which metrics, algorithms, and techniques that you implemented for the given data will need to be clearly documented. It should be abundantly clear how the implementation was carried out, and discussion should be made regarding any complications that occurred during this process. Questions to ask yourself when writing this section:
-- _Is it made clear how the algorithms and techniques were implemented with the given datasets or input data?_
-- _Were there any complications with the original metrics or techniques that required changing prior to acquiring a solution?_
-- _Was there any part of the coding process (e.g., writing complicated functions) that should be documented?_
+We create these callbacks and convert them to list for compilation keyword arguments. Our `loss` to monitor is logarithmic loss, termed here as `binary_crossentropy`. Adam is chosen as the optimizer since this is "appropriate for not-stationary objectives and problems with very noisy and/or sparse gradients," and because it typically "requires very little tuning" [(Kingma & Ba, 2017)](https://arxiv.org/abs/1412.6980v8). Finally, `accuracy` was chosen as a metric to supplement validation log loss as an intuitive measure of performance. 
+
+#### Model Creation and Running
+
+Since we've packaged our model compilation keywords into a dictionary, we can unpack them using the `**` operator into keyword arguments. We do so and are met with the (supposedly) simple CNN that is SimpNet. 
+
+Next, we set an epoch maximum (which will never be attained due to early stopping), a desired training size (we will augment the training set a few times over to get there), and a reasonable steps per epoch (defined as the number of batches of training samples per epoch). 
+
+With all the necessary inputs to the model accounted for, we call `.fit_generator` to fit batches of augmented images via `train_flow` so that our model starts to discriminate between icebergs and not-icebergs. Each pass the weights get updated according to the closeness of the guess towards the true label. Validation is performed each epoch using `valid_flow`, a single image generator that is necessary when using multiple inputs to the validation. A surprising fact may be that I originally set verbose to 0, since the tqdm widget was so cool. This might have to be reverted so you can see the results of training. 
+
+In all, 25 epochs were required to reach a minimum validation loss. Note that one reduction of learning rate allowed for additional gains in validation loss. The training was stopped after the 34th epoch and the best weights from the 25th epoch was saved. 
+
+#### Prediction and Submission
+
+All that's left is to run the predictions on the testing data and submit it to Kaggle for scoring. 
+
+![is_iceberg probabilities](./imgs/prediction_dist.png)
+
+I am heartened by the predictions distribution; it seems that our model is becoming confident in its predictions as evident by the many probabilities near 0 and 1. We'll see if that is a good or bad thing when we submit to Kaggle. 
 
 ### Refinement
+
+Our final submission is a private score of 0.2637 log loss! That is a noticeable improvement over our best baseline, the vanilla neural network's, score of 0.4553. Still good for middle-of-the-road in the Kaggle competition, but at least we're on the right track. 
+
+Close examiners of my Kaggle account (aka nobody besides me) will notice that a submission of `gpu_cnn.csv` had a lower log loss than the SimpNet architecture submission. Access to the supporting Jupyter notebook code was lost either through a git mishap or a Jupyter error, but rather than try to recreate something, I found a stable architecture that we can use as another baseline for improvement. 
+
+To this end, you might notice that even after normalizing, the decibel levels of the icebergs are still spikey, indicting elevated but not uniform backscatter.
+
+![before bentes normalization](./imgs/pre_bentes.png)
+
+Bentes et al noted that "the strong backscattering represented by high pixel values can introduce instabilities in the training process. In addition to that, target's peak values do not ggeneralize well in the classification task, [since] the high value is highly dependent of target orientation towards the satellite" [(Bentes et al, 2016)](http://elib.dlr.de/99079/2/2016_BENTES_Frost_Velotto_Tings_EUSAR_FP.pdf). 
+
+They therefore introduce a nonlinear normalization method, $N(x)$, defined as:
+
+$$N(x) = \frac{L(x)}{\max L(x)}$$
+
+where
+
+$$L(x) = \begin{cases} 1 + \log{x} & \text{if   } x > 1 \\ x & \text{if    } x\leq 1 \\ \end{cases}$$
+
+The L-function effectively blunts the higher decibel feedback that relates to a ship or an iceberg, since those are the highest decibels of backscatter in the image, to a closer range. As stated in the article, "the log function...attenuates the high intensity values of the target signal" (Bentes et al, 2016). 
+
+![after bentes normalization](./imgs/post_bentes.png)
+
+It's a bit hard to tell from this static image, but the intensities of the ship or iceberg all lay around 1, while the background is muted to values between -0.5 and 0.5. Another image with an additional mask of 2 standard deviations above the mean is instructive: 
+
+![bentes normalization with mask](./imgs/pre_and_post_bentes_with_mask.png)
+
+Not only do less of the wave pixels get indicated with high pixel values, but the iceberg itself has a more uniform intensity, allowing our model to more easily find the edges where it changes to more background pixel values. 
+
+Furthermore, this "Bentes normalization", as I'm calling it, "changes the target pixel distriubtion from a highly skewed (right tail) distribution to a normal-like symmetric distribution" (Bentes et al, 2016). A before and after investigation into the Q-Q plot confirms this assertion. 
+
+![q-q plot for bentes normalization](./imgs/q-q_bentes_effect.png)
+
+This particular iceberg had quite a satisfactory transformation to a normal-like spread. 
+
+Thus, with the new preprocessing steps enumerated in a new `make_tensors` function, we see if this new preprocessing has a positive effect on training a new SimpNet model with the same hyperparameters as before. 
+
+And from the early results, I can see that this approach failed at refinement. Other avenues involve improving or customizing the CNN architecture used for object recognition. 
+
+This is confirmed by the prediction distrubtion, but oddly this had the same final score as the SimpNet without Bentes normalization. 
+
+![bentes predictions distrubtion](./imgs/bentes_preds_dist.png)
+
+We prefer our original non-Bentes predictions because we were more confident in our guesses. Given the same log loss, we want a model that actually has predictive value. 
+
 In this section, you will need to discuss the process of improvement you made upon the algorithms and techniques you used in your implementation. For example, adjusting parameters for certain models to acquire improved solutions would fall under the refinement category. Your initial and final solutions should be reported, as well as any significant intermediate results as necessary. Questions to ask yourself when writing this section:
 - _Has an initial solution been found and clearly reported?_
 - _Is the process of improvement clearly documented, such as what techniques were used?_
