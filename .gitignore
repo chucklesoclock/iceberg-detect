@@ -2,7 +2,6 @@ input
 
 # ignore weights and outputs of early model versions
 output/naive_nn_v1.csv
-output/gpu_cnn.csv
 output/naive_nn_v1.1.csv
 output/naive_nn_v2_512_dropout.csv
 output/naive_nn_v3_2layers_1024_512.csv
