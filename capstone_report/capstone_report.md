@@ -44,15 +44,19 @@ The official evaluation metric of this Kaggle competition is the logarithmic los
 
 Detailed explanations of log loss are [available online](http://www.exegetic.biz/blog/2015/12/making-sense-logarithmic-loss/), but the formula for log loss is presented here:
 
-$$-\frac{1}{N} \sum\limits_{i=1}^N {y_i \log p_i + (1 - y_i) \log (1 - p_i)}$$
+![log loss formula](./imgs/log_loss.png)
 
-where $y_i$ is the label (1 = iceberg, 0 = no iceberg) for image $i$, $p_i$ is the probability outputted by our model that image $i$ contains an iceberg, and $N$ is the total number of images.
+where **_y<sub>i</sub>_** is the label (1 = iceberg, 0 = no iceberg) for image **_i_**, **_p<sub>i</sub>_** is the probability outputted by our model that image **_i_** contains an iceberg, and **_N_** is the total number of images.
 
-The individual log loss is summed and divided by $-N$ to give a comparable metric between predictions of different size and in order to make the log loss positive to preserve the notion of minimizing loss. 
+The individual log loss is summed and divided by **_-N_** to give a comparable metric between predictions of different size and in order to make the log loss positive to preserve the notion of minimizing loss. 
 
 For a single image, if our prediction matches the label, a confident prediction probability will contribute little to the total log loss. However, if our prediction does not match, a confident incorrect prediction will contributed heavily to the log loss. We shall endeavor to minimize the log loss; a perfect classifier (that outputs 1.0 for all iceberg images and 0.0 for all non-iceberg images) would have a log loss equal to zero. 
 
-In practice, functions that calculate log loss do not directly compute predictions of exactly 1 or 0. You might notice that a perfectly wrong prediction, such as predicting a definite in image $j$ containing a ship ($y_j = 1$) with probability $p_j = 0$ involves the calculation $y_j \log p_j = 1 \log 0 = \inf$. Since we can't sum infinity meaningfully, the log loss function assigns a minimum and maximum probability that it sets predictions of 0.0 and 1.0 to, respectively.
+In practice, functions that calculate log loss do not directly compute predictions of exactly 1 or 0. You might notice that a perfectly wrong prediction, such as predicting a definite in image **_j_** containing a ship (**_y<sub>j</sub>_ = 1**) with probability **_p<sub>j</sub> =_ 0** involves the calculation 
+
+![log loss explanation of completely wrong guess](./imgs/log_loss_ex.png)
+
+Since we can't sum infinity meaningfully, the log loss function assigns a minimum and maximum probability that it sets predictions of 0.0 and 1.0 to, respectively.
 
 ## II. Analysis
 
@@ -69,7 +73,7 @@ For completeness, an entry in `train.json` and `test.json` contains the followin
 * __`inc_angle`__ = incidence angle of radar image. Some entries have missing data and are marked as `na`.
 * __`is_iceberg`__ = target variable: 1 if iceberg, 0 if ship. Again, this field exists only in `train.json`
 
-There are 851 (53.05%) training examples of ships and 753 (46.95%) training examples of icebergs. 
+There are 851 (53.05%) training examples of ships and 753 (46.95%) training examples of icebergs.
 
 ![training set distribution](./imgs/train_data_dist.png)
 
@@ -78,24 +82,30 @@ This means that (1) we must create our own validation set from the smallish data
 #### Radar Data
 
 As noted in the introduction, a radar band's image data is composed of the decibel levels of backscatter, equivalent to the intensity of the reflected radar pulse for some predetermined pixel-to-area conversion. See below for heatmapped 2D illustrations:
+
 ##### Before By-Image Normalization
+
 ![heatmap of 4 icebergs](./imgs/ice_pre_norm.png)
 ![heatmap of 4 ships](./imgs/ship_pre_norm.png)
 
+The background is somewhat muted and the area of interest stands out with bright intensity. While this is good for human classification, our model will expect normalized data. 
+
 ##### After By-Image Normalization
+
 ![heatmap of 4 icebergs normed](./imgs/ice_post_norm.png)
 ![heatmap of 4 ships](./imgs/ship_post_norm.png)
 
-Both above are examples of the `band_1` aka transmit/receive horizontally (HH) radar data. We choose one of the icebergs and display its Q-Q plot, which measures the data's normal distribution tendencies. 
+All above are examples of the `band_1` aka transmit/receive horizontally (HH) radar data. We choose one of the icebergs and display its Q-Q plot, which measures the data's normal distribution tendencies. 
 
 ##### Normalization by Image
+
 ![q-q of iceberg regular normalization](./imgs/q-q_iceberg_norm.png)
 
 Note that it is somewhat normally distributed, but the bright spots of the area of interest (i.e. the iceberg or ocean-going vessel) makes it more heavily right-tailed. For our first pass, we are going to leave the normalized values where they are and observe performance. 
 
 Also to note is that we will be normalizing over each band, rather than by pixel across the entire dataset. This is for the now obvious reason that the backscatter from the icebergs' and ships' areas of interest are not fixed (since icebergs are, in fact, not uniformly made). Therefore the model should learn to expect edges in different places in the image. 
 
-Finally, we must add a third channel set to the mean of `band_1` and `band_2`, since Keras expects 1- or 3-channeled images (equivalent to grayscale or RGB images). This is accomplished through the `process_df` function applied early in the Jupyter notebook. 
+Finally, we must add a third channel set to the mean of `band_1` and `band_2`, since Keras expects 1- or 3-channeled images (equivalent to grayscale or RGB images respectively). This is accomplished through the `process_df` function applied early in the Jupyter notebook. 
 
 #### Incidence Angle
 
@@ -119,7 +129,7 @@ What we are left with is a somewhat normal-ish looking distribution which hopefu
 
 ### Exploratory Visualization
 
-I invite you to explore an interactive surface plot of an iceberg or ship thanks to `plotly` and [this helpful Kaggle notebook](https://www.kaggle.com/devm2024/keras-model-for-beginners-0-210-on-lb-eda-r-d).
+I invite you to explore an interactive surface plot of an iceberg or ship thanks to [`plotly`](https://plot.ly/python/) and [this helpful Kaggle notebook](https://www.kaggle.com/devm2024/keras-model-for-beginners-0-210-on-lb-eda-r-d).
 
 Interactive features are located in the [project report notebook](../project_notebook.ipynb), but below is a static view.  
 
@@ -169,7 +179,7 @@ The `certain iceberg` and `certain not iceberg` baseline models can be thought o
 
 Another benchmark is how a "vanilla" neural network would perform. By vanilla, we essentially mean a [multilayer perception](https://en.wikipedia.org/wiki/Multilayer_perceptron), with 3 fully connected layers of fully-connected does: one layer is the input, one the hidden, and one is the output, which consists of a single node. A picture is instructive in this case: 
 
-![mlp_example.png](./imgs/mlp_example.png)
+![multilayer perception example](./imgs/mlp_example.png)
 
 Our vanilla or naive neural network performed somewhat better than the constant-outputting baseline models. We endeavor to outperform this benchmark.
 
@@ -266,7 +276,7 @@ I am heartened by the predictions distribution; it seems that our model is becom
 
 ### Refinement
 
-Our final submission is a private score of 0.2637 log loss! That is a noticeable improvement over our best baseline, the vanilla neural network's, score of 0.4553. Still good for middle-of-the-road in the Kaggle competition, but at least we're on the right track. 
+Our final submission has a private score of 0.2637 log loss! That is a noticeable improvement over our best baseline, the vanilla neural network's, score of 0.4553. Still good for middle-of-the-road in the Kaggle competition, but at least we're on the right track. 
 
 Close examiners of my Kaggle account (aka nobody besides me) will notice that a submission of `gpu_cnn.csv` had a lower log loss (0.24412) than the SimpNet architecture submission. Access to the supporting Jupyter notebook code was lost either through a git mishap or a Jupyter error, but rather than try to recreate something, I found a stable architecture in SimpNet that we can use as another baseline for improvement. 
 
@@ -276,13 +286,13 @@ To that end, you might notice that even after normalizing, the decibel levels of
 
 Bentes et al noted that "the strong backscattering represented by high pixel values can introduce instabilities in the training process. In addition to that, target's peak values do not ggeneralize well in the classification task, [since] the high value is highly dependent of target orientation towards the satellite" [(Bentes et al, 2016)](http://elib.dlr.de/99079/2/2016_BENTES_Frost_Velotto_Tings_EUSAR_FP.pdf). 
 
-They therefore introduce a nonlinear normalization method, $N(x)$, defined as:
+They therefore introduce a nonlinear normalization method, **_N(x)_**, defined as:
 
-$$N(x) = \frac{L(x)}{\max L(x)}$$
+![bentes normalization equation](./imgs/bentes_norm_eq.png)
 
 where
 
-$$L(x) = \begin{cases} 1 + \log{x} & \text{if   } x > 1 \\ x & \text{if    } x\leq 1 \\ \end{cases}$$
+![bentes L-function equation](./imgs/bentes_L_eq.png)
 
 The L-function effectively blunts the higher decibel feedback that relates to a ship or an iceberg, since those are the highest decibels of backscatter in the image, to a closer range. As stated in the article, "the log function...attenuates the high intensity values of the target signal" (Bentes et al, 2016). 
 
@@ -346,7 +356,6 @@ We restate the improvement over the baseline log loss and assert that we have fo
 | SimpNet; no Bentes     | 0.2637    |
 
 Since logarithmic loss is a measure of "closeness of prediction", and we obtained a probability of `is_iceberg` distribution that made confident guesses on the testing set, then I argue the SimpNet result is a significant improvement over the naive neural network. I believe this model fully addresses the problem statement.  
-
 
 ## V. Conclusion
 
