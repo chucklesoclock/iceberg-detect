@@ -7,6 +7,10 @@ Download from the Kaggle competition page linked in the [Capstone Report](capsto
 ## Language
 **Python 3.6.4**
 
+## Relevant Files
+- [Main Project Jupyter Notebook](project_notebook.ipynb)
+- [Project Report PDF](/capstone_report/capstone_report.pdf)
+
 ### Software Libraries
 - Keras
 - TensorFlow
