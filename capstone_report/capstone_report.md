@@ -24,6 +24,8 @@ After identification on the SAR image described above, analysis is required to c
 
 My prediction is that best results will come with a custom architecture using the Bentes normalization, since we don't have access to his architecture but his methods seem sound. 
 
+In the remaining first section of the report, we will examine the project domain by looking at inputs, problem, solution, and metrics used. Next, we dive deeper into the dataset to gain a better understanding of the problem space, while also detailing our algorithmic approach and establishing benchmark models. Thirdly, our actual methodology will be recorded for repeatability along with any refinement techniques. Finally, in the last two sections we will display the results of our work and conclude with some parting thoughts. 
+
 #### Input Data
 
 To help accomplish our task, Statoil and C-CORE have provided us with two `json` files, one of labeled training examples (`train.json`) and one of unlabeled examples to test our model on (`test.json`). Each entry in both essentially contains a 75x75 pixel image composed of the backscatter levels from two different polarizations, along with the incidence angle the radar was emitted/collected at, and a label, if applicable. 
@@ -133,14 +135,16 @@ I invite you to explore an interactive surface plot of an iceberg or ship thanks
 
 Interactive features are located in the [project report notebook](../project_notebook.ipynb), but below is a static view.  
 
-![plotly view of ship/iceberg](./imgs/pre_bentes.png)
+![plotly view of iceberg](./imgs/pre_bentes.png)
+
+Above we can see the backscatter of this particular iceberg rendered in a 3D surface plot. You can see the background decibel levels caused by ocean waves or other interference and the larger levels of the iceberg centered in the image. 
 
 ### Algorithms and Techniques
 The approach employed will largely mirror cited articles. After pre-processing and normalization techniques are applied, a convolutional neural network, or CNN, will be constructed and trained on the labeled radar images. This is the computer vision industry standard approach to object recognition in images. 
 
 Generally, a CNN works by creating some combination of layers specific to CNNs. 
 
-The first and most important for detecting edges and shapes are the convolutional layer. This is usually a square filter slid across and down the image radar images that learns the shapes associated with that particular label (i.e. 0 for ship and 1 for iceberg). This deepens the spatial information available on a particular pixel. The second notable layer is a pooling layer, which averages or maxes a subset of usually >= 2x2 pixels on the radar image. This layer of the CNN usually follows a convolutional layer and works to shrink the dimensions of the informational object, while keeping the deepness that the convolution added. Finally, the other layer to be conversant in is the dropout layer, which randomly turns off some neurons in the network so that all of the architecture can be trained. This can be thought as "turning off" your dominant hand to learn how to sign your name with your off-hand, but in the case of nodes in a network. The theory is that, unlike a person, a fully-utilized neural network will generalize better than one with "asleep" nodes. 
+The first and most important for detecting edges and shapes is the convolutional layer. This is usually a square filter slid across and down the image radar images that learns the shapes associated with that particular label (i.e. 0 for ship and 1 for iceberg). This deepens the spatial information available on a particular pixel. The second notable layer is a pooling layer, which averages or maxes a subset of usually >= 2x2 pixels on the radar image. This layer of the CNN usually follows a convolutional layer and works to shrink the dimensions of the informational object, while keeping the deepness that the convolution added. Finally, the other layer to be conversant in is the dropout layer, which randomly turns off some neurons in the network so that all of the architecture can be trained. This can be thought as "turning off" your dominant hand to learn how to sign your name with your off-hand, but in the case of nodes in a network. The theory is that, unlike a person, a fully-utilized neural network will generalize better than one with "asleep" nodes. 
 
 SimpNet, like most CNN architectures, works because it does, rather than some application of theory. One of my custom CNN builds scored better on this dataset, but that code was lost in a freak git accident. SimpNet was therefore found for its accuracy on many standard datasets, such as CIFAR10, CIFAR100, MNIST, and SVHN, and its block-like design, allowing for possible refinement later. 
 
@@ -201,7 +205,7 @@ Each pixel in the 75x75 image contains a vector with 3 entries for 3 bands. Two 
 
 Given a DataFrame, this function adds the mean of the first two bands as the third band in a new column, and also reclassifies the incidence angles to `float64` with NaNs. 
 
-The `if not isinstance` statement makes sure we're not reclassifying an array that has already been reclassified. Also, we mute `FutureWarnings` related to internal Pandas improvements when changing the incidence angle to floats by the `with warnings.catch_warnings():` and the simple warnings filter. 
+The `if not isinstance` statement makes sure we're not reclassifying an array that has already been reclassified. Also, we mute `FutureWarnings` related to internal Pandas improvements when changing the incidence angle to floats by using the `with warnings.catch_warnings():` and the simple warnings filter. 
 
 #### `make_tensors(df)`
 This function creates a package of 4-dimensional tensors for Keras in a couple of steps: 
@@ -358,6 +362,24 @@ We restate the improvement over the baseline log loss and assert that we have fo
 Since logarithmic loss is a measure of "closeness of prediction", and we obtained a probability of `is_iceberg` distribution that made confident guesses on the testing set, then I argue the SimpNet result is a significant improvement over the naive neural network. I believe this model fully addresses the problem statement.  
 
 ## V. Conclusion
+
+### Visualization
+
+To get an idea on what shapes our model expects for discrimination purposes, we plot the best and worst performing prediction on the training data. 
+
+![best prediction in training data](./imgs/training_pred_best.png)
+
+Stressing that this is only one image out of a thousand, we can gather our model can easily decide that elongated, regular shapes are ocean vessels. This one particularly looks like it could be a cargo ship to the human eye. The model predicted its class with basically no error; the model was only 0.0000000004 off. 
+
+![worst prediction in training data](./imgs/training_pred_worst.png)
+
+Here is the worst prediction, off by 0.99362. We can infer that the model is confused by the square-like backscatter of small vessels. I am surprised the characteristic "rippling" in 4 directions around the area of interest wasn't detected; probably fell into the background of the waves. 
+
+For fun, let's look at the median prediction difference in the training set. 
+
+![median quality prediction in training data](./imgs/training_pred_mid.png)
+
+This is a smallish iceberg that shares some similarity with the poor prediction of iceberg above. What's nice about this classifying this a highly iceberg is the closeness: only 0.044895 away from the true label. We can infer that our model, even with its defects in training, is pretty trustworthy on the whole.  
 
 ### Reflection
 
