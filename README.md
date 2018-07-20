@@ -1,15 +1,17 @@
 # iceberg-detect
-Udacity MLND capstone
+Capstone project for the Udacity Machine Learning Engineer Nanodegree.
 
-## Gathering Dataset
-Download from the Kaggle competition page linked in the [Capstone Report](capstone_report/capstone_report.md).
-
-## Language
-**Python 3.6.4**
+This project aims to automatically discriminate between icebergs and ocean-going vessels in sailing ship. 
 
 ## Relevant Files
 - [Main Project Jupyter Notebook](project_notebook.ipynb)
 - [Project Report PDF](/capstone_report/capstone_report.pdf)
+
+## Gathering Dataset
+Download from the [Kaggle competition page](https://www.kaggle.com/c/statoil-iceberg-classifier-challenge/data). WARNING: 1.5 GB size.
+
+## Language
+**Python 3.6.4**
 
 ### Software Libraries
 - Keras
