@@ -1,6 +1,4 @@
 # iceberg-detect
-Capstone project for the Udacity Machine Learning Engineer Nanodegree.
-
 This project aims to automatically discriminate between icebergs and ocean-going vessels in satellite radar data. 
 
 ## Relevant Files
